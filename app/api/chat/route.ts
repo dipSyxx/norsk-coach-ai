@@ -172,10 +172,11 @@ export async function POST(req: Request) {
               sessionId,
               text,
               userContentForExtraction,
+              user.explanation_language,
               prisma
             );
-          } catch {
-            // Non-critical
+          } catch (err) {
+            console.error("Extract vocab/mistakes failed (non-critical):", err);
           }
         }
       },
@@ -188,13 +189,24 @@ export async function POST(req: Request) {
   }
 }
 
+const EXPLANATION_LANG_INSTRUCTION: Record<string, string> = {
+  ukrainian: "Give the explanation for each vocab item in Ukrainian.",
+  english: "Give the explanation for each vocab item in English.",
+  norwegian: "Give the explanation for each vocab item in simple Norwegian.",
+};
+
 async function extractVocabAndMistakes(
   userId: string,
   sessionId: string,
   assistantText: string,
   lastUserMessage: string,
+  explanationLanguage: string,
   prismaClient: PrismaClient
 ) {
+  const langInstruction =
+    EXPLANATION_LANG_INSTRUCTION[explanationLanguage] ??
+    EXPLANATION_LANG_INSTRUCTION.norwegian;
+
   const prompt = `You are analyzing a Norwegian tutor's reply to a student.
 
 Last user message:
@@ -203,19 +215,24 @@ ${lastUserMessage || "(none)"}
 Assistant's reply:
 ${assistantText}
 
-Extract:
-1) New Norwegian vocabulary the tutor introduced or explained (term, brief explanation, optional example sentence).
-2) Mistakes the tutor corrected in this exchange (type: short label e.g. ordstilling/verb/artikkel, example: what the student wrote wrong, correction: the correct form).
+${langInstruction}
 
-Return empty arrays if there is nothing to extract.`;
+Extract:
+1) Norwegian vocabulary or phrases from this reply: words or expressions the tutor introduced, explained, used, highlighted, or suggested. For each item provide:
+   - term: the Norwegian word or phrase
+   - explanation: brief meaning (in the language requested above)
+   - example: a short Norwegian sentence that actually USES the term (e.g. "Jeg har jobbet med brukergrensesnittet."). Use only a real example sentence from the reply, or build one. Do NOT use the tutor's question or invitation (e.g. "Vil du prøve å skrive en setning..."). If there is no suitable example, use empty string "".
+2) Mistakes the tutor corrected (type, example: what the student wrote wrong, correction: the correct form).
+
+Return empty arrays only if there is truly nothing to extract.`;
 
   const { output } = await generateText({
     model: openai("gpt-4.1-mini"),
     prompt,
     output: Output.object({
       schema: extractionSchema,
-      schemaName: "extraction",
-      schemaDescription: "Extracted vocabulary and mistake corrections",
+      name: "extraction",
+      description: "Extracted vocabulary and mistake corrections",
     }),
     maxRetries: 1,
   });
@@ -235,6 +252,7 @@ Return empty arrays if there is nothing to extract.`;
         term: v.term.trim(),
         explanation: v.explanation?.trim() ?? null,
         exampleSentence: v.example?.trim() ?? null,
+        nextReviewAt: new Date(Date.now() + 12 * 60 * 60 * 1000), // 0.5 days, same as strength 0 in review
       },
       update: {
         explanation: v.explanation?.trim() ?? null,

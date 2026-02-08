@@ -3,7 +3,7 @@ import { z } from "zod";
 export const vocabItemSchema = z.object({
   term: z.string().describe("Norwegian word or phrase"),
   explanation: z.string().describe("Brief explanation in Norwegian or target language"),
-  example: z.string().optional().describe("Example sentence in Norwegian"),
+  example: z.string().describe("A short Norwegian sentence that uses the term (not the tutor's question); empty string if no suitable example"),
 });
 
 export const mistakeItemSchema = z.object({

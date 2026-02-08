@@ -65,7 +65,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { term, explanation, exampleSentence } = await req.json();
+    const { term, explanation, exampleSentence, sessionId } = await req.json();
 
     if (!term) {
       return NextResponse.json(
@@ -74,12 +74,25 @@ export async function POST(req: Request) {
       );
     }
 
-    const item = await prisma.vocabItem.create({
-      data: {
+    const trimmedTerm = String(term).trim();
+    const nextReviewAt = new Date(Date.now() + 12 * 60 * 60 * 1000); // 0.5 days
+
+    const item = await prisma.vocabItem.upsert({
+      where: {
+        userId_term: { userId: user.id, term: trimmedTerm },
+      },
+      create: {
         userId: user.id,
-        term: String(term).trim(),
+        sessionId: sessionId ?? null,
+        term: trimmedTerm,
         explanation: explanation ?? null,
         exampleSentence: exampleSentence ?? null,
+        nextReviewAt,
+      },
+      update: {
+        explanation: explanation ?? null,
+        exampleSentence: exampleSentence ?? null,
+        ...(sessionId != null && { sessionId }),
       },
     });
 
