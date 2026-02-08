@@ -29,18 +29,19 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_user ON chat_sessions(user_id, updated_at DESC);
 
--- Messages
+-- Messages (content encrypted at rest when key_version > 0)
 CREATE TABLE IF NOT EXISTS messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
   content TEXT NOT NULL,
+  key_version INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, created_at ASC);
 
--- Vocabulary items
+-- Vocabulary items (one row per user+term for deduplication)
 CREATE TABLE IF NOT EXISTS vocab_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -51,7 +52,8 @@ CREATE TABLE IF NOT EXISTS vocab_items (
   strength INTEGER DEFAULT 0 CHECK (strength >= 0 AND strength <= 5),
   last_seen_at TIMESTAMPTZ DEFAULT NOW(),
   next_review_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '1 day',
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, term)
 );
 
 CREATE INDEX IF NOT EXISTS idx_vocab_user ON vocab_items(user_id, next_review_at ASC);

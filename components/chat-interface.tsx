@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import { SessionSidebar } from "@/components/session-sidebar";
 import { ChatView } from "@/components/chat-view";
+import { SessionVocabPanel } from "@/components/session-vocab-panel";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -26,6 +27,14 @@ export function ChatInterface() {
     sessionParam
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [vocabRefreshKey, setVocabRefreshKey] = useState(0);
+
+  const refetchSessionVocab = useCallback(() => {
+    if (activeSessionId) {
+      setVocabRefreshKey((k) => k + 1);
+      mutate(`/api/sessions/${activeSessionId}/vocab`);
+    }
+  }, [activeSessionId]);
 
   const { data: sessionsData } = useSWR<{ sessions: ChatSession[] }>(
     "/api/sessions",
@@ -103,6 +112,11 @@ export function ChatInterface() {
         sessionId={activeSessionId}
         onNewSession={handleNewSession}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        onStreamFinish={refetchSessionVocab}
+      />
+      <SessionVocabPanel
+        sessionId={activeSessionId}
+        refreshKey={vocabRefreshKey}
       />
     </div>
   );

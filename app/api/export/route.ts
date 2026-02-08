@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { decrypt } from "@/lib/encryption";
 
 export async function GET(req: Request) {
   try {
@@ -29,11 +30,17 @@ export async function GET(req: Request) {
         );
       }
 
-      const messages = await sql`
-        SELECT role, content, created_at
+      const messageRows = await sql`
+        SELECT role, content, key_version, created_at
         FROM messages WHERE session_id = ${sessionId}
         ORDER BY created_at ASC
       `;
+
+      const messages = messageRows.map((m) => ({
+        role: m.role,
+        content: decrypt((m.content as string) ?? "", (m.key_version as number) ?? 0),
+        created_at: m.created_at,
+      }));
 
       const data = {
         session: sessionRows[0],
@@ -67,22 +74,31 @@ export async function GET(req: Request) {
       `,
     ]);
 
-    // Get messages for all sessions
+    // Get messages for all sessions (decrypt content)
     const sessionIds = sessions.map((s) => s.id);
-    let allMessages: Record<string, unknown>[] = [];
+    let allMessages: { session_id: string; role: string; content: string; key_version: number; created_at: unknown }[] = [];
     if (sessionIds.length > 0) {
-      allMessages = await sql`
-        SELECT session_id, role, content, created_at
+      const rows = await sql`
+        SELECT session_id, role, content, key_version, created_at
         FROM messages WHERE session_id = ANY(${sessionIds})
         ORDER BY created_at ASC
       `;
+      allMessages = rows.map((m) => ({
+        session_id: m.session_id as string,
+        role: m.role as string,
+        content: decrypt((m.content as string) ?? "", (m.key_version as number) ?? 0),
+        key_version: (m.key_version as number) ?? 0,
+        created_at: m.created_at,
+      }));
     }
 
     const data = {
       user: { email: user.email, name: user.name, level: user.level },
       sessions: sessions.map((s) => ({
         ...s,
-        messages: allMessages.filter((m) => m.session_id === s.id),
+        messages: allMessages
+          .filter((m) => m.session_id === s.id)
+          .map(({ role, content, created_at }) => ({ role, content, created_at })),
       })),
       vocabulary: vocab,
       mistakePatterns: mistakes,

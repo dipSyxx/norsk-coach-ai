@@ -39,14 +39,14 @@ export async function POST(req: Request) {
       : Math.max(currentStrength - 1, 0);
 
     // Spaced repetition intervals (in days)
-    const intervals = [0.5, 1, 2, 4, 8, 16];
-    const intervalDays = intervals[newStrength] || 1;
+    const intervals: number[] = [0.5, 1, 2, 4, 8, 16];
+    const intervalDays = intervals[newStrength] ?? 1;
 
     await sql`
       UPDATE vocab_items SET
         strength = ${newStrength},
         last_seen_at = NOW(),
-        next_review_at = NOW() + ${intervalDays + " days"}::INTERVAL
+        next_review_at = NOW() + make_interval(days => ${intervalDays})
       WHERE id = ${itemId} AND user_id = ${user.id}
     `;
 

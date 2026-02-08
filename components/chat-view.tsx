@@ -12,14 +12,30 @@ import {
   Plus,
   ArrowDown,
   MessageSquare,
+  Trash2,
+  Download,
 } from "lucide-react";
 import { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 
 interface ChatViewProps {
   sessionId: string | null;
   onNewSession: (mode?: string) => void;
   onToggleSidebar: () => void;
+  onStreamFinish?: () => void;
 }
 
 function getMessageText(msg: UIMessage): string {
@@ -34,19 +50,46 @@ export function ChatView({
   sessionId,
   onNewSession,
   onToggleSidebar,
+  onStreamFinish,
 }: ChatViewProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [input, setInput] = useState("");
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const prevStatusRef = useRef<string | undefined>(undefined);
 
-  const { messages, sendMessage, status, setMessages } = useChat({
+  const { messages, sendMessage, status, setMessages, error } = useChat({
     id: sessionId || undefined,
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: { sessionId },
     }),
+    onError: (err) => {
+      const msg = err?.message ?? "";
+      if (msg.includes("429") || msg.includes("Too many")) {
+        toast.error("For mange meldinger. Vent litt før du prøver igjen.");
+      } else if (msg.includes("400") || msg.includes("too long") || msg.includes("appropriate")) {
+        try {
+          const body = (err as { body?: { error?: string } })?.body;
+          const apiMsg = typeof body?.error === "string" ? body.error : null;
+          toast.error(apiMsg ?? "Meldingen kunne ikke sendes. Prøv igjen.");
+        } catch {
+          toast.error("Meldingen kunne ikke sendes. Prøv igjen.");
+        }
+      } else {
+        toast.error("Noe gikk galt. Prøv igjen senere.");
+      }
+    },
   });
+
+  useEffect(() => {
+    if (prevStatusRef.current === "streaming" && status === "ready") {
+      onStreamFinish?.();
+    }
+    prevStatusRef.current = status;
+  }, [status, onStreamFinish]);
 
   // Reset messages when session changes
   useEffect(() => {
@@ -62,11 +105,12 @@ export function ChatView({
       const res = await fetch(`/api/sessions/${sid}`);
       const data = await res.json();
       if (data.messages && data.messages.length > 0) {
-        const restored: UIMessage[] = data.messages.map(
-          (m: { id: string; role: string; content: string }) => ({
+        const restored: (UIMessage & { created_at?: string })[] = data.messages.map(
+          (m: { id: string; role: string; content: string; created_at?: string }) => ({
             id: m.id,
             role: m.role as "user" | "assistant",
             parts: [{ type: "text" as const, text: m.content }],
+            created_at: m.created_at,
           })
         );
         setMessages(restored);
@@ -95,6 +139,47 @@ export function ChatView({
   function scrollToBottom() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     setShowScrollBtn(false);
+  }
+
+  async function handleExportSession() {
+    if (!sessionId) return;
+    try {
+      const res = await fetch(`/api/export?sessionId=${encodeURIComponent(sessionId)}`);
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `session-${sessionId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Samtalen er eksportert");
+    } catch {
+      toast.error("Kunne ikke eksportere samtalen");
+    }
+  }
+
+  async function handleClearChat() {
+    if (!sessionId) return;
+    setClearing(true);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/messages`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setMessages([]);
+        setClearDialogOpen(false);
+        toast.success("Chatten er tømt");
+      } else {
+        toast.error("Kunne ikke tømme chatten");
+      }
+    } catch {
+      toast.error("Kunne ikke tømme chatten");
+    } finally {
+      setClearing(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -166,6 +251,48 @@ export function ChatView({
             Samtale
           </span>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground hover:text-foreground"
+          aria-label="Eksporter samtale"
+          onClick={handleExportSession}
+        >
+          <Download className="h-4 w-4" />
+        </Button>
+        <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground"
+              aria-label="Tøm chat"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Tøm chat</AlertDialogTitle>
+              <AlertDialogDescription>
+                Er du sikker på at du vil slette alle meldinger i denne samtalen? Denne handlingen kan ikke angres.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Avbryt</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleClearChat();
+                }}
+                disabled={clearing}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {clearing ? "Tømmer..." : "Tøm chat"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         {status === "streaming" && (
           <span className="text-xs text-primary animate-pulse">
             Veilederen skriver...
@@ -267,9 +394,25 @@ export function ChatView({
   );
 }
 
-function ChatBubble({ message }: { message: UIMessage }) {
+function formatMessageTime(createdAt: string | undefined): string {
+  if (!createdAt) return "";
+  const date = new Date(createdAt);
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (minutes < 1) return "Akkurat nå";
+  if (minutes < 60) return `${minutes} min siden`;
+  if (hours < 24) return `${hours}t siden`;
+  if (days < 7) return `${days}d siden`;
+  return date.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
+}
+
+function ChatBubble({ message }: { message: UIMessage & { created_at?: string } }) {
   const isUser = message.role === "user";
   const text = getMessageText(message);
+  const timeStr = formatMessageTime(message.created_at);
 
   return (
     <div
@@ -283,19 +426,26 @@ function ChatBubble({ message }: { message: UIMessage }) {
           <span className="text-xs font-bold">N</span>
         </div>
       )}
-      <div
-        className={cn(
-          "rounded-2xl px-4 py-2.5 max-w-[80%] text-sm leading-relaxed whitespace-pre-wrap",
-          isUser
-            ? "bg-primary text-primary-foreground rounded-br-md"
-            : "bg-muted text-foreground rounded-bl-md"
-        )}
-      >
-        {text || (
-          <span className="flex items-center gap-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce" />
-            <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce [animation-delay:0.15s]" />
-            <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce [animation-delay:0.3s]" />
+      <div className={cn("flex flex-col gap-0.5 max-w-[80%]", isUser ? "items-end" : "items-start")}>
+        <div
+          className={cn(
+            "rounded-2xl px-4 py-2.5 w-full text-sm leading-relaxed whitespace-pre-wrap",
+            isUser
+              ? "bg-primary text-primary-foreground rounded-br-md"
+              : "bg-muted text-foreground rounded-bl-md"
+          )}
+        >
+          {text || (
+            <span className="flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce" />
+              <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce [animation-delay:0.15s]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-current animate-bounce [animation-delay:0.3s]" />
+            </span>
+          )}
+        </div>
+        {timeStr && (
+          <span className="text-[10px] text-muted-foreground">
+            {timeStr}
           </span>
         )}
       </div>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { decrypt } from "@/lib/encryption";
 
 export async function GET(
   _req: Request,
@@ -28,12 +29,19 @@ export async function GET(
       );
     }
 
-    const messages = await sql`
-      SELECT id, role, content, created_at
+    const messageRows = await sql`
+      SELECT id, role, content, key_version, created_at
       FROM messages
       WHERE session_id = ${id}
       ORDER BY created_at ASC
     `;
+
+    const messages = messageRows.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: decrypt((m.content as string) ?? "", (m.key_version as number) ?? 0),
+      created_at: m.created_at,
+    }));
 
     return NextResponse.json({
       session: sessionRows[0],
