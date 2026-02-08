@@ -144,6 +144,7 @@ model MistakePattern {
   user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   session ChatSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
+  @@unique([userId, mistakeType])
   @@index([userId])
   @@map("mistake_patterns")
 }

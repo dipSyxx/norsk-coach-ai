@@ -264,13 +264,23 @@ Return empty arrays only if there is truly nothing to extract.`;
 
   for (const m of output.mistakes) {
     if (!m.type?.trim()) continue;
-    await prismaClient.mistakePattern.create({
-      data: {
+    const mistakeType = m.type.trim();
+    await prismaClient.mistakePattern.upsert({
+      where: {
+        userId_mistakeType: { userId, mistakeType },
+      },
+      create: {
         userId,
         sessionId,
-        mistakeType: m.type.trim(),
+        mistakeType,
         example: m.example?.trim() ?? null,
         correction: m.correction?.trim() ?? null,
+      },
+      update: {
+        example: m.example?.trim() ?? null,
+        correction: m.correction?.trim() ?? null,
+        sessionId,
+        count: { increment: 1 },
       },
     });
   }
