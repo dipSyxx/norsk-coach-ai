@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
@@ -9,48 +9,70 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const sql = getDb();
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    const [sessionCount, recentSessions, vocabStats, mistakeStats, dueWords] =
-      await Promise.all([
-        sql`SELECT COUNT(*) as count FROM chat_sessions WHERE user_id = ${user.id}`,
-        sql`
-          SELECT id, title, mode, updated_at 
-          FROM chat_sessions 
-          WHERE user_id = ${user.id} 
-          ORDER BY updated_at DESC 
-          LIMIT 5
-        `,
-        sql`
-          SELECT 
-            COUNT(*) as total,
-            COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') as new_this_week,
-            COUNT(*) FILTER (WHERE strength >= 4) as mastered
-          FROM vocab_items WHERE user_id = ${user.id}
-        `,
-        sql`
-          SELECT mistake_type, count, example, correction
-          FROM mistake_patterns
-          WHERE user_id = ${user.id}
-          ORDER BY count DESC
-          LIMIT 5
-        `,
-        sql`
-          SELECT COUNT(*) as count FROM vocab_items
-          WHERE user_id = ${user.id} AND next_review_at <= NOW()
-        `,
-      ]);
+    const [
+      sessionCount,
+      recentSessions,
+      totalVocab,
+      newThisWeek,
+      mastered,
+      dueWords,
+      topMistakes,
+    ] = await Promise.all([
+      prisma.chatSession.count({ where: { userId: user.id } }),
+      prisma.chatSession.findMany({
+        where: { userId: user.id },
+        orderBy: { updatedAt: "desc" },
+        take: 5,
+        select: { id: true, title: true, mode: true, updatedAt: true },
+      }),
+      prisma.vocabItem.count({ where: { userId: user.id } }),
+      prisma.vocabItem.count({
+        where: { userId: user.id, createdAt: { gte: sevenDaysAgo } },
+      }),
+      prisma.vocabItem.count({
+        where: { userId: user.id, strength: { gte: 4 } },
+      }),
+      prisma.vocabItem.count({
+        where: {
+          userId: user.id,
+          nextReviewAt: { lte: new Date() },
+        },
+      }),
+      prisma.mistakePattern.findMany({
+        where: { userId: user.id },
+        orderBy: { count: "desc" },
+        take: 5,
+        select: {
+          mistakeType: true,
+          count: true,
+          example: true,
+          correction: true,
+        },
+      }),
+    ]);
 
     return NextResponse.json({
       stats: {
-        totalSessions: Number(sessionCount[0].count),
-        totalVocab: Number(vocabStats[0].total),
-        newWordsThisWeek: Number(vocabStats[0].new_this_week),
-        masteredWords: Number(vocabStats[0].mastered),
-        dueWords: Number(dueWords[0].count),
+        totalSessions: sessionCount,
+        totalVocab,
+        newWordsThisWeek: newThisWeek,
+        masteredWords: mastered,
+        dueWords,
       },
-      recentSessions,
-      topMistakes: mistakeStats,
+      recentSessions: recentSessions.map((s) => ({
+        id: s.id,
+        title: s.title,
+        mode: s.mode,
+        updated_at: s.updatedAt,
+      })),
+      topMistakes: topMistakes.map((m) => ({
+        mistake_type: m.mistakeType,
+        count: m.count,
+        example: m.example,
+        correction: m.correction,
+      })),
     });
   } catch (error) {
     console.error("Dashboard error:", error);

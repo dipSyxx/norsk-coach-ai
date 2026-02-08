@@ -1,17 +1,18 @@
 "use client";
 
-import React from "react"
-
-import { useState } from "react";
+import React, { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -23,24 +24,21 @@ export default function LoginPage() {
     const password = formData.get("password") as string;
 
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const res = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+        callbackUrl,
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast.error(data.error || "Noe gikk galt");
+      if (res?.error) {
+        toast.error("Ugyldig e-post eller passord");
+        setLoading(false);
         return;
       }
 
-      if (data.user.onboarding_complete) {
-        router.push("/dashboard");
-      } else {
-        router.push("/onboarding");
-      }
+      router.push(res?.url ?? "/dashboard");
+      router.refresh();
     } catch {
       toast.error("Kunne ikke koble til serveren");
     } finally {
@@ -111,5 +109,17 @@ export default function LoginPage() {
         </p>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen flex items-center justify-center px-4">
+        <div className="w-full max-w-sm text-center text-muted-foreground">Laster...</div>
+      </main>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 
 /**
  * GET /api/sessions/:id/vocab — vocab items from this session (for "New words from this chat" panel).
@@ -16,28 +16,39 @@ export async function GET(
     }
 
     const { id } = await params;
-    const sql = getDb();
 
-    const sessionRows = await sql`
-      SELECT id FROM chat_sessions
-      WHERE id = ${id} AND user_id = ${user.id}
-    `;
+    const session = await prisma.chatSession.findFirst({
+      where: { id, userId: user.id },
+    });
 
-    if (sessionRows.length === 0) {
+    if (!session) {
       return NextResponse.json(
         { error: "Session not found" },
         { status: 404 }
       );
     }
 
-    const items = await sql`
-      SELECT id, term, explanation, example_sentence, created_at
-      FROM vocab_items
-      WHERE user_id = ${user.id} AND session_id = ${id}
-      ORDER BY created_at DESC
-    `;
+    const items = await prisma.vocabItem.findMany({
+      where: { userId: user.id, sessionId: id },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        term: true,
+        explanation: true,
+        exampleSentence: true,
+        createdAt: true,
+      },
+    });
 
-    return NextResponse.json({ items });
+    return NextResponse.json({
+      items: items.map((i) => ({
+        id: i.id,
+        term: i.term,
+        explanation: i.explanation,
+        example_sentence: i.exampleSentence,
+        created_at: i.createdAt,
+      })),
+    });
   } catch (error) {
     console.error("Session vocab error:", error);
     return NextResponse.json(

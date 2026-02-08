@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/encryption";
 
 export async function GET(req: Request) {
@@ -13,37 +13,33 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const sessionId = url.searchParams.get("sessionId");
 
-    const sql = getDb();
-
     if (sessionId) {
-      // Export single session
-      const sessionRows = await sql`
-        SELECT id, title, mode, topic, created_at
-        FROM chat_sessions
-        WHERE id = ${sessionId} AND user_id = ${user.id}
-      `;
+      const session = await prisma.chatSession.findFirst({
+        where: { id: sessionId, userId: user.id },
+        include: { messages: { orderBy: { createdAt: "asc" } } },
+      });
 
-      if (sessionRows.length === 0) {
+      if (!session) {
         return NextResponse.json(
           { error: "Session not found" },
           { status: 404 }
         );
       }
 
-      const messageRows = await sql`
-        SELECT role, content, key_version, created_at
-        FROM messages WHERE session_id = ${sessionId}
-        ORDER BY created_at ASC
-      `;
-
-      const messages = messageRows.map((m) => ({
+      const messages = session.messages.map((m) => ({
         role: m.role,
-        content: decrypt((m.content as string) ?? "", (m.key_version as number) ?? 0),
-        created_at: m.created_at,
+        content: decrypt(m.content, m.keyVersion),
+        created_at: m.createdAt,
       }));
 
       const data = {
-        session: sessionRows[0],
+        session: {
+          id: session.id,
+          title: session.title,
+          mode: session.mode,
+          topic: session.topic,
+          created_at: session.createdAt,
+        },
         messages,
         exportedAt: new Date().toISOString(),
       };
@@ -56,52 +52,86 @@ export async function GET(req: Request) {
       });
     }
 
-    // Export all data
     const [sessions, vocab, mistakes] = await Promise.all([
-      sql`
-        SELECT id, title, mode, topic, created_at
-        FROM chat_sessions WHERE user_id = ${user.id}
-        ORDER BY created_at DESC
-      `,
-      sql`
-        SELECT term, explanation, example_sentence, strength, created_at
-        FROM vocab_items WHERE user_id = ${user.id}
-        ORDER BY created_at DESC
-      `,
-      sql`
-        SELECT mistake_type, example, correction, count
-        FROM mistake_patterns WHERE user_id = ${user.id}
-      `,
+      prisma.chatSession.findMany({
+        where: { userId: user.id },
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          mode: true,
+          topic: true,
+          createdAt: true,
+        },
+      }),
+      prisma.vocabItem.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+        select: {
+          term: true,
+          explanation: true,
+          exampleSentence: true,
+          strength: true,
+          createdAt: true,
+        },
+      }),
+      prisma.mistakePattern.findMany({
+        where: { userId: user.id },
+        select: {
+          mistakeType: true,
+          example: true,
+          correction: true,
+          count: true,
+        },
+      }),
     ]);
 
-    // Get messages for all sessions (decrypt content)
     const sessionIds = sessions.map((s) => s.id);
-    let allMessages: { session_id: string; role: string; content: string; key_version: number; created_at: unknown }[] = [];
-    if (sessionIds.length > 0) {
-      const rows = await sql`
-        SELECT session_id, role, content, key_version, created_at
-        FROM messages WHERE session_id = ANY(${sessionIds})
-        ORDER BY created_at ASC
-      `;
-      allMessages = rows.map((m) => ({
-        session_id: m.session_id as string,
-        role: m.role as string,
-        content: decrypt((m.content as string) ?? "", (m.key_version as number) ?? 0),
-        key_version: (m.key_version as number) ?? 0,
-        created_at: m.created_at,
-      }));
-    }
+    const allMessages = await prisma.message.findMany({
+      where: { sessionId: { in: sessionIds } },
+      orderBy: { createdAt: "asc" },
+      select: {
+        sessionId: true,
+        role: true,
+        content: true,
+        keyVersion: true,
+        createdAt: true,
+      },
+    });
 
     const data = {
-      user: { email: user.email, name: user.name, level: user.level },
+      user: {
+        email: user.email,
+        name: user.name,
+        level: user.level,
+      },
       sessions: sessions.map((s) => ({
-        ...s,
+        id: s.id,
+        title: s.title,
+        mode: s.mode,
+        topic: s.topic,
+        created_at: s.createdAt,
         messages: allMessages
-          .filter((m) => m.session_id === s.id)
-          .map(({ role, content, created_at }) => ({ role, content, created_at })),
+          .filter((m) => m.sessionId === s.id)
+          .map((m) => ({
+            role: m.role,
+            content: decrypt(m.content, m.keyVersion),
+            created_at: m.createdAt,
+          })),
       })),
-      vocabulary: vocab,
-      mistakePatterns: mistakes,
+      vocabulary: vocab.map((v) => ({
+        term: v.term,
+        explanation: v.explanation,
+        example_sentence: v.exampleSentence,
+        strength: v.strength,
+        created_at: v.createdAt,
+      })),
+      mistakePatterns: mistakes.map((m) => ({
+        mistake_type: m.mistakeType,
+        example: m.example,
+        correction: m.correction,
+        count: m.count,
+      })),
       exportedAt: new Date().toISOString(),
     };
 

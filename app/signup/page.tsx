@@ -1,10 +1,10 @@
 "use client";
 
-import React from "react"
-
+import React from "react";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,10 +34,26 @@ export default function SignupPage() {
 
       if (!res.ok) {
         toast.error(data.error || "Noe gikk galt");
+        setLoading(false);
+        return;
+      }
+
+      const signInRes = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+        callbackUrl: "/onboarding",
+      });
+
+      if (signInRes?.error) {
+        toast.success("Konto opprettet. Logg inn for å fortsette.");
+        router.push("/login");
+        setLoading(false);
         return;
       }
 
       router.push("/onboarding");
+      router.refresh();
     } catch {
       toast.error("Kunne ikke koble til serveren");
     } finally {

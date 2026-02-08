@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
@@ -9,16 +9,25 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const sql = getDb();
-    const sessions = await sql`
-      SELECT cs.id, cs.title, cs.mode, cs.topic, cs.created_at, cs.updated_at,
-        (SELECT COUNT(*) FROM messages WHERE session_id = cs.id) as message_count
-      FROM chat_sessions cs
-      WHERE cs.user_id = ${user.id}
-      ORDER BY cs.updated_at DESC
-    `;
+    const sessions = await prisma.chatSession.findMany({
+      where: { userId: user.id },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        _count: { select: { messages: true } },
+      },
+    });
 
-    return NextResponse.json({ sessions });
+    const sessionsWithCount = sessions.map((s) => ({
+      id: s.id,
+      title: s.title,
+      mode: s.mode,
+      topic: s.topic,
+      created_at: s.createdAt,
+      updated_at: s.updatedAt,
+      message_count: s._count.messages,
+    }));
+
+    return NextResponse.json({ sessions: sessionsWithCount });
   } catch (error) {
     console.error("Sessions list error:", error);
     return NextResponse.json(
@@ -37,14 +46,25 @@ export async function POST(req: Request) {
 
     const { mode, topic, title } = await req.json();
 
-    const sql = getDb();
-    const rows = await sql`
-      INSERT INTO chat_sessions (user_id, mode, topic, title)
-      VALUES (${user.id}, ${mode || "free_chat"}, ${topic || null}, ${title || "Ny samtale"})
-      RETURNING id, title, mode, topic, created_at, updated_at
-    `;
+    const session = await prisma.chatSession.create({
+      data: {
+        userId: user.id,
+        mode: mode || "free_chat",
+        topic: topic || null,
+        title: title || "Ny samtale",
+      },
+    });
 
-    return NextResponse.json({ session: rows[0] });
+    return NextResponse.json({
+      session: {
+        id: session.id,
+        title: session.title,
+        mode: session.mode,
+        topic: session.topic,
+        created_at: session.createdAt,
+        updated_at: session.updatedAt,
+      },
+    });
   } catch (error) {
     console.error("Session create error:", error);
     return NextResponse.json(

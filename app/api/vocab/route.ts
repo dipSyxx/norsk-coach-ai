@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(req: Request) {
   try {
@@ -12,40 +12,43 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const filter = url.searchParams.get("filter") || "all";
 
-    const sql = getDb();
+    const baseWhere = { userId: user.id };
     let items;
 
     if (filter === "due") {
-      items = await sql`
-        SELECT id, term, explanation, example_sentence, strength, last_seen_at, next_review_at, created_at
-        FROM vocab_items
-        WHERE user_id = ${user.id} AND next_review_at <= NOW()
-        ORDER BY next_review_at ASC
-      `;
+      items = await prisma.vocabItem.findMany({
+        where: { ...baseWhere, nextReviewAt: { lte: new Date() } },
+        orderBy: { nextReviewAt: "asc" },
+      });
     } else if (filter === "mastered") {
-      items = await sql`
-        SELECT id, term, explanation, example_sentence, strength, last_seen_at, next_review_at, created_at
-        FROM vocab_items
-        WHERE user_id = ${user.id} AND strength >= 4
-        ORDER BY created_at DESC
-      `;
+      items = await prisma.vocabItem.findMany({
+        where: { ...baseWhere, strength: { gte: 4 } },
+        orderBy: { createdAt: "desc" },
+      });
     } else if (filter === "new") {
-      items = await sql`
-        SELECT id, term, explanation, example_sentence, strength, last_seen_at, next_review_at, created_at
-        FROM vocab_items
-        WHERE user_id = ${user.id} AND strength < 2
-        ORDER BY created_at DESC
-      `;
+      items = await prisma.vocabItem.findMany({
+        where: { ...baseWhere, strength: { lt: 2 } },
+        orderBy: { createdAt: "desc" },
+      });
     } else {
-      items = await sql`
-        SELECT id, term, explanation, example_sentence, strength, last_seen_at, next_review_at, created_at
-        FROM vocab_items
-        WHERE user_id = ${user.id}
-        ORDER BY created_at DESC
-      `;
+      items = await prisma.vocabItem.findMany({
+        where: baseWhere,
+        orderBy: { createdAt: "desc" },
+      });
     }
 
-    return NextResponse.json({ items });
+    const mapped = items.map((i) => ({
+      id: i.id,
+      term: i.term,
+      explanation: i.explanation,
+      example_sentence: i.exampleSentence,
+      strength: i.strength,
+      last_seen_at: i.lastSeenAt,
+      next_review_at: i.nextReviewAt,
+      created_at: i.createdAt,
+    }));
+
+    return NextResponse.json({ items: mapped });
   } catch (error) {
     console.error("Vocab list error:", error);
     return NextResponse.json(
@@ -71,14 +74,25 @@ export async function POST(req: Request) {
       );
     }
 
-    const sql = getDb();
-    const rows = await sql`
-      INSERT INTO vocab_items (user_id, term, explanation, example_sentence)
-      VALUES (${user.id}, ${term}, ${explanation || null}, ${exampleSentence || null})
-      RETURNING id, term, explanation, example_sentence, strength, created_at
-    `;
+    const item = await prisma.vocabItem.create({
+      data: {
+        userId: user.id,
+        term: String(term).trim(),
+        explanation: explanation ?? null,
+        exampleSentence: exampleSentence ?? null,
+      },
+    });
 
-    return NextResponse.json({ item: rows[0] });
+    return NextResponse.json({
+      item: {
+        id: item.id,
+        term: item.term,
+        explanation: item.explanation,
+        example_sentence: item.exampleSentence,
+        strength: item.strength,
+        created_at: item.createdAt,
+      },
+    });
   } catch (error) {
     console.error("Vocab add error:", error);
     return NextResponse.json(

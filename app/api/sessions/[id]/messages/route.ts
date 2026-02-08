@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 
 /**
  * DELETE /api/sessions/:id/messages — clear all messages in the session (session kept).
@@ -16,21 +16,21 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const sql = getDb();
 
-    const sessionRows = await sql`
-      SELECT id FROM chat_sessions
-      WHERE id = ${id} AND user_id = ${user.id}
-    `;
+    const session = await prisma.chatSession.findFirst({
+      where: { id, userId: user.id },
+    });
 
-    if (sessionRows.length === 0) {
+    if (!session) {
       return NextResponse.json(
         { error: "Session not found" },
         { status: 404 }
       );
     }
 
-    await sql`DELETE FROM messages WHERE session_id = ${id}`;
+    await prisma.message.deleteMany({
+      where: { sessionId: id },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

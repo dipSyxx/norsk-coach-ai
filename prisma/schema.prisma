@@ -1,0 +1,149 @@
+// NorskCoach AI + Auth.js (NextAuth v5) Prisma schema
+// Maps to existing Neon Postgres tables; Auth.js uses Account, Session, VerificationToken.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Auth.js models (User extended with app fields; Session/Account/VerificationToken new) ---
+
+model User {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String?
+  email              String    @unique
+  emailVerified      DateTime? @map("email_verified")
+  image              String?
+  passwordHash       String    @map("password_hash")
+  level              String    @default("A2")
+  coachStyle         String    @default("friendly") @map("coach_style")
+  explanationLanguage String  @default("norwegian") @map("explanation_language")
+  topics             String[] @default([])
+  goal               String    @default("snakke")
+  onboardingComplete Boolean   @default(false) @map("onboarding_complete")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  accounts             Account[]
+  sessions             Session[]
+  chatSessions         ChatSession[]
+  vocabItems           VocabItem[]
+  mistakePatterns      MistakePattern[]
+
+  @@map("users")
+}
+
+model Account {
+  userId            String  @map("user_id") @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id") @db.Uuid
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@id([identifier, token])
+  @@map("verification_tokens")
+}
+
+// --- App domain models (existing tables) ---
+
+model ChatSession {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  title     String   @default("Ny samtale")
+  mode      String   @default("free_chat")
+  topic     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+  vocabItems VocabItem[]
+  mistakePatterns MistakePattern[]
+
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("chat_sessions")
+}
+
+model Message {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId String  @map("session_id") @db.Uuid
+  role      String
+  content   String   @db.Text
+  keyVersion Int     @default(0) @map("key_version")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt(sort: Asc)])
+  @@map("messages")
+}
+
+model VocabItem {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  sessionId      String?   @map("session_id") @db.Uuid
+  term           String
+  explanation    String?
+  exampleSentence String?  @map("example_sentence")
+  strength       Int       @default(0)
+  lastSeenAt     DateTime  @default(now()) @map("last_seen_at")
+  nextReviewAt   DateTime  @map("next_review_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session ChatSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, term])
+  @@index([userId, nextReviewAt(sort: Asc)])
+  @@map("vocab_items")
+}
+
+model MistakePattern {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  sessionId   String?  @map("session_id") @db.Uuid
+  mistakeType String   @map("mistake_type")
+  example     String?  @db.Text
+  correction  String?  @db.Text
+  count       Int      @default(1)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session ChatSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("mistake_patterns")
+}

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
   try {
@@ -18,37 +18,35 @@ export async function POST(req: Request) {
       );
     }
 
-    const sql = getDb();
+    const item = await prisma.vocabItem.findFirst({
+      where: { id: itemId, userId: user.id },
+    });
 
-    // Get current strength
-    const rows = await sql`
-      SELECT strength FROM vocab_items
-      WHERE id = ${itemId} AND user_id = ${user.id}
-    `;
-
-    if (rows.length === 0) {
+    if (!item) {
       return NextResponse.json(
         { error: "Item not found" },
         { status: 404 }
       );
     }
 
-    const currentStrength = rows[0].strength as number;
     const newStrength = knew
-      ? Math.min(currentStrength + 1, 5)
-      : Math.max(currentStrength - 1, 0);
+      ? Math.min(item.strength + 1, 5)
+      : Math.max(item.strength - 1, 0);
 
-    // Spaced repetition intervals (in days)
     const intervals: number[] = [0.5, 1, 2, 4, 8, 16];
     const intervalDays = intervals[newStrength] ?? 1;
+    const nextReviewAt = new Date(
+      Date.now() + intervalDays * 24 * 60 * 60 * 1000
+    );
 
-    await sql`
-      UPDATE vocab_items SET
-        strength = ${newStrength},
-        last_seen_at = NOW(),
-        next_review_at = NOW() + make_interval(days => ${intervalDays})
-      WHERE id = ${itemId} AND user_id = ${user.id}
-    `;
+    await prisma.vocabItem.update({
+      where: { id: itemId },
+      data: {
+        strength: newStrength,
+        lastSeenAt: new Date(),
+        nextReviewAt,
+      },
+    });
 
     return NextResponse.json({ strength: newStrength });
   } catch (error) {

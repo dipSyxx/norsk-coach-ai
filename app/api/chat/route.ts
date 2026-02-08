@@ -1,12 +1,13 @@
 import { generateText, streamText, Output } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { getSession } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 import { buildSystemPrompt } from "@/lib/system-prompt";
 import { extractionSchema } from "@/lib/extract-schema";
 import { encrypt, decrypt } from "@/lib/encryption";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isContentSafe } from "@/lib/moderation";
+import type { PrismaClient } from "@prisma/client";
 
 const MAX_INPUT_LENGTH = 4000;
 
@@ -76,41 +77,36 @@ export async function POST(req: Request) {
       }
     }
 
-    const sql = getDb();
-
-    // Verify session ownership
-    const sessionRows = await sql`
-      SELECT id FROM chat_sessions 
-      WHERE id = ${sessionId} AND user_id = ${user.id}
-    `;
-    if (sessionRows.length === 0) {
+    const session = await prisma.chatSession.findFirst({
+      where: { id: sessionId, userId: user.id },
+    });
+    if (!session) {
       return new Response("Session not found", { status: 404 });
     }
 
-    // Save user message to DB and capture for extraction
     const userContentForExtraction = userContent;
     if (userContent) {
       const { payload, keyVersion } = encrypt(userContent);
-      await sql`
-        INSERT INTO messages (session_id, role, content, key_version)
-        VALUES (${sessionId}, 'user', ${payload}, ${keyVersion})
-      `;
+      await prisma.message.create({
+        data: {
+          sessionId,
+          role: "user",
+          content: payload,
+          keyVersion,
+        },
+      });
     }
 
-    // Load conversation history from DB for context (decrypt if encrypted)
-    const historyRows = await sql`
-      SELECT role, content, key_version FROM messages
-      WHERE session_id = ${sessionId}
-      ORDER BY created_at ASC
-      LIMIT 50
-    `;
+    const historyRows = await prisma.message.findMany({
+      where: { sessionId },
+      orderBy: { createdAt: "asc" },
+      take: 50,
+      select: { role: true, content: true, keyVersion: true },
+    });
 
     const historyMessages = historyRows.map((r) => ({
       role: r.role as "user" | "assistant",
-      content: decrypt(
-        r.content as string,
-        (r.key_version as number) ?? 0,
-      ),
+      content: decrypt(r.content, r.keyVersion),
     }));
 
     const systemPrompt = buildSystemPrompt(user);
@@ -121,56 +117,52 @@ export async function POST(req: Request) {
       messages: historyMessages,
       maxRetries: 2,
       onFinish: async ({ text }) => {
-        // Save assistant message (encrypted)
         if (text) {
           const { payload, keyVersion } = encrypt(text);
-          await sql`
-            INSERT INTO messages (session_id, role, content, key_version)
-            VALUES (${sessionId}, 'assistant', ${payload}, ${keyVersion})
-          `;
+          await prisma.message.create({
+            data: {
+              sessionId,
+              role: "assistant",
+              content: payload,
+              keyVersion,
+            },
+          });
 
-          // Update session timestamp and auto-generate title from first exchange
-          const msgCount = await sql`
-            SELECT COUNT(*) as count FROM messages WHERE session_id = ${sessionId}
-          `;
+          const msgCount = await prisma.message.count({
+            where: { sessionId },
+          });
 
-          if (Number(msgCount[0].count) <= 3) {
-            // Auto-title from first user message (decrypt for title)
-            const firstMsg = await sql`
-              SELECT content, key_version FROM messages 
-              WHERE session_id = ${sessionId} AND role = 'user'
-              ORDER BY created_at ASC LIMIT 1
-            `;
-            if (firstMsg.length > 0) {
-              const raw = firstMsg[0];
-              const plain = decrypt(
-                raw.content as string,
-                (raw.key_version as number) ?? 0,
-              );
+          if (msgCount <= 3) {
+            const firstMsg = await prisma.message.findFirst({
+              where: { sessionId, role: "user" },
+              orderBy: { createdAt: "asc" },
+              select: { content: true, keyVersion: true },
+            });
+            if (firstMsg) {
+              const plain = decrypt(firstMsg.content, firstMsg.keyVersion);
               const title = plain.slice(0, 50);
-              await sql`
-                UPDATE chat_sessions SET title = ${title}, updated_at = NOW()
-                WHERE id = ${sessionId}
-              `;
+              await prisma.chatSession.update({
+                where: { id: sessionId },
+                data: { title, updatedAt: new Date() },
+              });
             }
           } else {
-            await sql`
-              UPDATE chat_sessions SET updated_at = NOW()
-              WHERE id = ${sessionId}
-            `;
+            await prisma.chatSession.update({
+              where: { id: sessionId },
+              data: { updatedAt: new Date() },
+            });
           }
 
-          // Structured extraction: vocab + mistakes
           try {
             await extractVocabAndMistakes(
               user.id,
               sessionId,
               text,
               userContentForExtraction,
-              sql,
+              prisma
             );
           } catch {
-            // Non-critical, don't fail the request
+            // Non-critical
           }
         }
       },
@@ -188,7 +180,7 @@ async function extractVocabAndMistakes(
   sessionId: string,
   assistantText: string,
   lastUserMessage: string,
-  sql: ReturnType<typeof import("@neondatabase/serverless").neon>,
+  prismaClient: PrismaClient
 ) {
   const prompt = `You are analyzing a Norwegian tutor's reply to a student.
 
@@ -217,21 +209,38 @@ Return empty arrays if there is nothing to extract.`;
 
   for (const v of output.vocab) {
     if (!v.term?.trim()) continue;
-    await sql`
-      INSERT INTO vocab_items (user_id, session_id, term, explanation, example_sentence)
-      VALUES (${userId}, ${sessionId}, ${v.term.trim()}, ${v.explanation?.trim() ?? null}, ${v.example?.trim() ?? null})
-      ON CONFLICT (user_id, term) DO UPDATE SET
-        explanation = EXCLUDED.explanation,
-        example_sentence = EXCLUDED.example_sentence,
-        session_id = EXCLUDED.session_id
-    `;
+    await prismaClient.vocabItem.upsert({
+      where: {
+        userId_term: {
+          userId,
+          term: v.term.trim(),
+        },
+      },
+      create: {
+        userId,
+        sessionId,
+        term: v.term.trim(),
+        explanation: v.explanation?.trim() ?? null,
+        exampleSentence: v.example?.trim() ?? null,
+      },
+      update: {
+        explanation: v.explanation?.trim() ?? null,
+        exampleSentence: v.example?.trim() ?? null,
+        sessionId,
+      },
+    });
   }
 
   for (const m of output.mistakes) {
     if (!m.type?.trim()) continue;
-    await sql`
-      INSERT INTO mistake_patterns (user_id, session_id, mistake_type, example, correction)
-      VALUES (${userId}, ${sessionId}, ${m.type.trim()}, ${m.example?.trim() ?? null}, ${m.correction?.trim() ?? null})
-    `;
+    await prismaClient.mistakePattern.create({
+      data: {
+        userId,
+        sessionId,
+        mistakeType: m.type.trim(),
+        example: m.example?.trim() ?? null,
+        correction: m.correction?.trim() ?? null,
+      },
+    });
   }
 }

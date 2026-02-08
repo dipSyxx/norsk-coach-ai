@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/encryption";
 
 export async function GET(
@@ -14,37 +14,35 @@ export async function GET(
     }
 
     const { id } = await params;
-    const sql = getDb();
 
-    const sessionRows = await sql`
-      SELECT id, title, mode, topic, created_at, updated_at
-      FROM chat_sessions
-      WHERE id = ${id} AND user_id = ${user.id}
-    `;
+    const session = await prisma.chatSession.findFirst({
+      where: { id, userId: user.id },
+      include: { messages: { orderBy: { createdAt: "asc" } } },
+    });
 
-    if (sessionRows.length === 0) {
+    if (!session) {
       return NextResponse.json(
         { error: "Session not found" },
         { status: 404 }
       );
     }
 
-    const messageRows = await sql`
-      SELECT id, role, content, key_version, created_at
-      FROM messages
-      WHERE session_id = ${id}
-      ORDER BY created_at ASC
-    `;
-
-    const messages = messageRows.map((m) => ({
+    const messages = session.messages.map((m) => ({
       id: m.id,
       role: m.role,
-      content: decrypt((m.content as string) ?? "", (m.key_version as number) ?? 0),
-      created_at: m.created_at,
+      content: decrypt(m.content, m.keyVersion),
+      created_at: m.createdAt,
     }));
 
     return NextResponse.json({
-      session: sessionRows[0],
+      session: {
+        id: session.id,
+        title: session.title,
+        mode: session.mode,
+        topic: session.topic,
+        created_at: session.createdAt,
+        updated_at: session.updatedAt,
+      },
       messages,
     });
   } catch (error) {
@@ -67,12 +65,10 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const sql = getDb();
 
-    await sql`
-      DELETE FROM chat_sessions
-      WHERE id = ${id} AND user_id = ${user.id}
-    `;
+    await prisma.chatSession.deleteMany({
+      where: { id, userId: user.id },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

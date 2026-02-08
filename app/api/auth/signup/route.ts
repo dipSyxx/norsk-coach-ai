@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
-import { generateToken } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { cookies } from "next/headers";
 
 export async function POST(req: Request) {
   try {
@@ -22,10 +20,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const sql = getDb();
-
-    const existing = await sql`SELECT id FROM users WHERE email = ${email.toLowerCase().trim()}`;
-    if (existing.length > 0) {
+    const emailNorm = email.toLowerCase().trim();
+    const existing = await prisma.user.findUnique({
+      where: { email: emailNorm },
+    });
+    if (existing) {
       return NextResponse.json(
         { error: "An account with this email already exists" },
         { status: 409 }
@@ -34,28 +33,18 @@ export async function POST(req: Request) {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    const userRows = await sql`
-      INSERT INTO users (email, password_hash, name)
-      VALUES (${email.toLowerCase().trim()}, ${passwordHash}, ${name || null})
-      RETURNING id, email, name, onboarding_complete
-    `;
-
-    const user = userRows[0];
-    const token = generateToken();
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-
-    await sql`
-      INSERT INTO user_sessions (user_id, token, expires_at)
-      VALUES (${user.id}, ${token}, ${expiresAt.toISOString()})
-    `;
-
-    const cookieStore = await cookies();
-    cookieStore.set("session_token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      expires: expiresAt,
-      path: "/",
+    const user = await prisma.user.create({
+      data: {
+        email: emailNorm,
+        passwordHash,
+        name: name || null,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        onboardingComplete: true,
+      },
     });
 
     return NextResponse.json({ user });

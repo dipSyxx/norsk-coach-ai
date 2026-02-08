@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import {
   LayoutDashboard,
   MessageSquare,
@@ -28,9 +29,8 @@ export function AppNav() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await signOut({ callbackUrl: "/" });
     toast.success("Du er logget ut");
-    router.push("/");
   }
 
   return (

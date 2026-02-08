@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 
 export async function PUT(req: Request) {
   try {
@@ -12,18 +12,17 @@ export async function PUT(req: Request) {
     const { level, coachStyle, explanationLanguage, topics, goal, name } =
       await req.json();
 
-    const sql = getDb();
-    await sql`
-      UPDATE users SET
-        level = COALESCE(${level}, level),
-        coach_style = COALESCE(${coachStyle}, coach_style),
-        explanation_language = COALESCE(${explanationLanguage}, explanation_language),
-        topics = COALESCE(${topics}, topics),
-        goal = COALESCE(${goal}, goal),
-        name = COALESCE(${name}, name),
-        updated_at = NOW()
-      WHERE id = ${user.id}
-    `;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        ...(level != null && { level }),
+        ...(coachStyle != null && { coachStyle }),
+        ...(explanationLanguage != null && { explanationLanguage }),
+        ...(topics != null && { topics: Array.isArray(topics) ? topics : undefined }),
+        ...(goal != null && { goal }),
+        ...(name != null && { name }),
+      },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
