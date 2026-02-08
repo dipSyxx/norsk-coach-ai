@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,14 +29,43 @@ interface SettingsData {
   topics: string[];
 }
 
+function snapshotSettings(data: SettingsData): SettingsData {
+  return {
+    ...data,
+    topics: [...data.topics],
+  };
+}
+
+function serializeSettings(data: SettingsData): string {
+  return JSON.stringify({
+    ...data,
+    topics: [...data.topics].sort(),
+  });
+}
+
 export function SettingsContent({
   initialData,
 }: {
   initialData: SettingsData;
 }) {
   const [data, setData] = useState(initialData);
+  const [baseline, setBaseline] = useState(() =>
+    snapshotSettings(initialData)
+  );
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const isDirty = useMemo(
+    () => serializeSettings(data) !== serializeSettings(baseline),
+    [data, baseline]
+  );
+
+  useEffect(() => {
+    if (isDirty) {
+      setSaved(false);
+    }
+  }, [isDirty]);
 
   async function handleSave() {
     setSaving(true);
@@ -48,6 +77,8 @@ export function SettingsContent({
       });
 
       if (res.ok) {
+        setBaseline(snapshotSettings(data));
+        setSaved(true);
         toast.success("Innstillinger lagret");
       } else {
         toast.error("Kunne ikke lagre innstillinger");
@@ -70,7 +101,9 @@ export function SettingsContent({
       const a = document.createElement("a");
       a.href = url;
       a.download = "norskcoach-export.json";
+      document.body.appendChild(a);
       a.click();
+      a.remove();
       URL.revokeObjectURL(url);
       toast.success("Data eksportert");
     } catch {
@@ -93,7 +126,10 @@ export function SettingsContent({
     <div className="flex flex-col gap-6">
       {/* Profile */}
       <section className="bg-card border border-border rounded-xl p-5">
-        <h2 className="font-semibold text-foreground mb-4">Profil</h2>
+        <h2 className="font-semibold text-foreground mb-1">Profil</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Oppdater navnet ditt og se kontoinformasjon.
+        </p>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="name" className="text-sm">
@@ -117,9 +153,12 @@ export function SettingsContent({
 
       {/* Learning preferences */}
       <section className="bg-card border border-border rounded-xl p-5">
-        <h2 className="font-semibold text-foreground mb-4">
+        <h2 className="font-semibold text-foreground mb-1">
           Læringsinnstillinger
         </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Velg nivå, fokus og språk for forklaringer.
+        </p>
         <div className="flex flex-col gap-5">
           {/* Level */}
           <div className="flex flex-col gap-2">
@@ -128,7 +167,9 @@ export function SettingsContent({
               {["A2", "B1"].map((l) => (
                 <button
                   key={l}
+                  type="button"
                   onClick={() => setData((p) => ({ ...p, level: l }))}
+                  aria-pressed={data.level === l}
                   className={cn(
                     "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
                     data.level === l
@@ -153,7 +194,9 @@ export function SettingsContent({
               ].map((g) => (
                 <button
                   key={g.value}
+                  type="button"
                   onClick={() => setData((p) => ({ ...p, goal: g.value }))}
+                  aria-pressed={data.goal === g.value}
                   className={cn(
                     "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
                     data.goal === g.value
@@ -177,9 +220,11 @@ export function SettingsContent({
               ].map((s) => (
                 <button
                   key={s.value}
+                  type="button"
                   onClick={() =>
                     setData((p) => ({ ...p, coachStyle: s.value }))
                   }
+                  aria-pressed={data.coachStyle === s.value}
                   className={cn(
                     "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
                     data.coachStyle === s.value
@@ -204,12 +249,14 @@ export function SettingsContent({
               ].map((l) => (
                 <button
                   key={l.value}
+                  type="button"
                   onClick={() =>
                     setData((p) => ({
                       ...p,
                       explanationLanguage: l.value,
                     }))
                   }
+                  aria-pressed={data.explanationLanguage === l.value}
                   className={cn(
                     "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
                     data.explanationLanguage === l.value
@@ -230,7 +277,9 @@ export function SettingsContent({
               {TOPICS.map((t) => (
                 <button
                   key={t.id}
+                  type="button"
                   onClick={() => toggleTopic(t.id)}
+                  aria-pressed={data.topics.includes(t.id)}
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
                     data.topics.includes(t.id)
@@ -249,20 +298,43 @@ export function SettingsContent({
         </div>
       </section>
 
+      {/* Data export */}
+      <section className="bg-card border border-border rounded-xl p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-semibold text-foreground mb-1">
+              Data og eksport
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Last ned en kopi av dataene dine som JSON.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={exporting}
+            className="gap-2 bg-transparent"
+          >
+            <Download className="h-4 w-4" />
+            {exporting ? "Eksporterer..." : "Eksporter data"}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground mt-3">
+          Inkluderer samtaler, meldinger, ordforråd og vanlige feil.
+        </p>
+      </section>
+
       {/* Actions */}
       <div className="flex items-center gap-3 flex-wrap">
-        <Button onClick={handleSave} disabled={saving}>
+        <Button onClick={handleSave} disabled={saving || !isDirty}>
           {saving ? "Lagrer..." : "Lagre innstillinger"}
         </Button>
-        <Button
-          variant="outline"
-          onClick={handleExport}
-          disabled={exporting}
-          className="gap-2 bg-transparent"
-        >
-          <Download className="h-4 w-4" />
-          {exporting ? "Eksporterer..." : "Eksporter data (JSON)"}
-        </Button>
+        {saved && !isDirty && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Check className="h-3 w-3 text-primary" />
+            Lagret
+          </div>
+        )}
       </div>
     </div>
   );

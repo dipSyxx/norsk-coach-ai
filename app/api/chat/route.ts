@@ -1,10 +1,15 @@
-import { streamText, convertToModelMessages } from "ai";
+import { streamText } from "ai";
+import { openai } from "@ai-sdk/openai";
 import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { buildSystemPrompt } from "@/lib/system-prompt";
 
 export async function POST(req: Request) {
   try {
+    if (!process.env.OPENAI_API_KEY) {
+      return new Response("OPENAI_API_KEY is not set", { status: 500 });
+    }
+
     const user = await getSession();
     if (!user) {
       return new Response("Unauthorized", { status: 401 });
@@ -34,7 +39,9 @@ export async function POST(req: Request) {
         lastUserMsg.parts
           ?.filter((p: { type: string }) => p.type === "text")
           .map((p: { text: string }) => p.text)
-          .join("") || lastUserMsg.content || "";
+          .join("") ||
+        lastUserMsg.content ||
+        "";
 
       if (userContent) {
         await sql`
@@ -60,7 +67,7 @@ export async function POST(req: Request) {
     const systemPrompt = buildSystemPrompt(user);
 
     const result = streamText({
-      model: "openai/gpt-4o-mini",
+      model: openai("gpt-4.1-mini"),
       system: systemPrompt,
       messages: historyMessages,
       onFinish: async ({ text }) => {
@@ -118,7 +125,7 @@ async function extractVocab(
   sql: ReturnType<typeof import("@neondatabase/serverless").neon>,
   userId: string,
   sessionId: string,
-  text: string
+  text: string,
 ) {
   // Simple pattern matching for Norwegian vocab hints in assistant responses
   const vocabPattern =
