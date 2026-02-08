@@ -4,6 +4,20 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
+/** Session user shape after session callback (matches types/next-auth.d.ts). */
+export type SessionUser = {
+  id: string;
+  level: string;
+  coachStyle: string;
+  explanationLanguage: string;
+  topics: string[];
+  goal: string;
+  onboardingComplete: boolean;
+  email?: string | null;
+  name?: string | null;
+  image?: string | null;
+};
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: {

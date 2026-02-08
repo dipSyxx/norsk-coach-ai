@@ -1,13 +1,18 @@
 import { redirect } from "next/navigation";
 import { auth, signIn, signOut } from "@/auth";
 
-export type SessionUser = Awaited<ReturnType<typeof auth>> extends infer S
-  ? S extends { user: infer U } | null
-    ? U extends null
-      ? never
-      : U
-    : never
-  : never;
+/** Return type of getSession() — snake_case to match API/database conventions. */
+export type SessionUser = {
+  id: string;
+  email: string;
+  name: string | null;
+  level: string;
+  coach_style: string;
+  explanation_language: string;
+  topics: string[];
+  goal: string;
+  onboarding_complete: boolean;
+};
 
 export async function getSession() {
   const session = await auth();

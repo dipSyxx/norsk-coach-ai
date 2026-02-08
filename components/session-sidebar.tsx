@@ -107,6 +107,7 @@ export function SessionSidebar({
           { mode: "rollespill", label: "Rollespill" },
           { mode: "grammatikk", label: "Grammatikk" },
           { mode: "rett_teksten", label: "Rett teksten" },
+          { mode: "ovelse", label: "Lag øvelse" },
         ].map((m) => (
           <button
             key={m.mode}

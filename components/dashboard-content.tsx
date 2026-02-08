@@ -11,6 +11,7 @@ import {
   TrendingUp,
   ArrowRight,
   Plus,
+  Target,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -24,6 +25,8 @@ interface DashboardData {
     masteredWords: number;
     dueWords: number;
   };
+  dagensMal?: { action: "repeter"; count: number } | { action: "start_chat" };
+  iDag?: { newWordsToday: number; mistakesToday: number };
   recentSessions: Array<{
     id: string;
     title: string;
@@ -47,11 +50,53 @@ export function DashboardContent() {
   if (isLoading) return <DashboardSkeleton />;
 
   const stats = data?.stats;
+  const dagensMal = data?.dagensMal ?? { action: "start_chat" as const };
+  const iDag = data?.iDag ?? { newWordsToday: 0, mistakesToday: 0 };
   const sessions = data?.recentSessions || [];
   const mistakes = data?.topMistakes || [];
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Dagens mål */}
+      <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Target className="h-4 w-4 text-primary" />
+          <h2 className="font-semibold text-foreground text-sm">Dagens mål</h2>
+        </div>
+        {dagensMal.action === "repeter" ? (
+          <Link
+            href="/vocab?filter=due"
+            className="flex items-center justify-between group"
+          >
+            <span className="text-sm text-muted-foreground">
+              Repeter {dagensMal.count} ord som venter på repetering
+            </span>
+            <ArrowRight className="h-4 w-4 text-primary group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+        ) : (
+          <Link
+            href="/chat"
+            className="flex items-center justify-between group"
+          >
+            <span className="text-sm text-muted-foreground">
+              Start en ny samtale med veilederen
+            </span>
+            <ArrowRight className="h-4 w-4 text-primary group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+        )}
+      </div>
+
+      {/* I dag */}
+      <div className="bg-card border border-border rounded-xl px-4 py-3 flex items-center gap-6">
+        <span className="text-sm font-medium text-foreground">I dag</span>
+        <span className="text-sm text-muted-foreground">
+          {iDag.newWordsToday} nye ord
+        </span>
+        <span className="text-sm text-muted-foreground">
+          {iDag.mistakesToday} feil rettet
+        </span>
+      </div>
+
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
@@ -128,10 +173,15 @@ export function DashboardContent() {
         )}
       </div>
 
-      {/* Recent Sessions */}
+      {/* Sist øvd */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-foreground">Siste samtaler</h2>
+          <div>
+            <h2 className="font-semibold text-foreground">Sist øvd</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Dine siste samtaler
+            </p>
+          </div>
           <Link
             href="/chat"
             className="text-sm text-primary hover:underline font-medium"

@@ -1,12 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Download, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const TOPICS = [
   { id: "jobb", label: "Jobb" },
@@ -55,6 +67,9 @@ export function SettingsContent({
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const isDirty = useMemo(
     () => serializeSettings(data) !== serializeSettings(baseline),
@@ -110,6 +125,30 @@ export function SettingsContent({
       toast.error("Kunne ikke eksportere data");
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/settings/delete-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: "DELETE" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Kunne ikke slette konto");
+        return;
+      }
+      setDeleteDialogOpen(false);
+      setDeleteConfirm("");
+      toast.success("Konto slettet");
+      await signOut({ callbackUrl: "/" });
+    } catch {
+      toast.error("Noe gikk galt");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -322,6 +361,73 @@ export function SettingsContent({
         <p className="text-xs text-muted-foreground mt-3">
           Inkluderer samtaler, meldinger, ordforråd og vanlige feil.
         </p>
+      </section>
+
+      {/* Personvern */}
+      <section className="bg-card border border-border rounded-xl p-5">
+        <h2 className="font-semibold text-foreground mb-1">Personvern</h2>
+        <p className="text-sm text-muted-foreground">
+          Dataene dine (samtaler, meldinger, ordforråd og vanlige feil) lagres sikkert i vår database. Vi bruker dem kun til å levere tjenesten og forbedre din læringsopplevelse. Data slettes når du sletter kontoen din. Vi deler ikke dine data med tredjeparter for markedsføring.
+        </p>
+      </section>
+
+      {/* Delete account */}
+      <section className="bg-card border border-destructive/30 rounded-xl p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-semibold text-foreground mb-1">Slett konto</h2>
+            <p className="text-sm text-muted-foreground">
+              Slett kontoen din og alle data permanent. Denne handlingen kan ikke angres.
+            </p>
+          </div>
+          <AlertDialog
+            open={deleteDialogOpen}
+            onOpenChange={(open) => {
+              setDeleteDialogOpen(open);
+              if (!open) setDeleteConfirm("");
+            }}
+          >
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" className="gap-2">
+                Slett konto
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Slett konto</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Er du sikker på at du vil slette kontoen din? Alle samtaler, meldinger, ordforråd og vanlige feil vil bli slettet permanent. Skriv DELETE nedenfor for å bekrefte.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="py-2">
+                <Label htmlFor="delete-confirm" className="text-sm">
+                  Skriv DELETE for å bekrefte
+                </Label>
+                <Input
+                  id="delete-confirm"
+                  value={deleteConfirm}
+                  onChange={(e) => setDeleteConfirm(e.target.value)}
+                  placeholder="DELETE"
+                  className="mt-1 font-mono"
+                  autoComplete="off"
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (deleteConfirm === "DELETE") handleDeleteAccount();
+                  }}
+                  disabled={deleteConfirm !== "DELETE" || deleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deleting ? "Sletter..." : "Slett konto permanent"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </section>
 
       {/* Actions */}

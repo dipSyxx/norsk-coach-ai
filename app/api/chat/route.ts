@@ -109,7 +109,10 @@ export async function POST(req: Request) {
       content: decrypt(r.content, r.keyVersion),
     }));
 
-    const systemPrompt = buildSystemPrompt(user);
+    const systemPrompt = buildSystemPrompt(user, {
+      mode: session.mode,
+      topic: session.topic ?? undefined,
+    });
 
     const result = streamText({
       model: openai("gpt-4.1-mini"),
@@ -133,19 +136,29 @@ export async function POST(req: Request) {
           });
 
           if (msgCount <= 3) {
+            const modeLabels: Record<string, string> = {
+              free_chat: "Fri samtale",
+              rollespill: "Rollespill",
+              rett_teksten: "Rett teksten",
+              ovelse: "Lag øvelse",
+              grammatikk: "Grammatikk",
+            };
+            const modeLabel = modeLabels[session.mode] ?? session.mode;
             const firstMsg = await prisma.message.findFirst({
               where: { sessionId, role: "user" },
               orderBy: { createdAt: "asc" },
               select: { content: true, keyVersion: true },
             });
-            if (firstMsg) {
-              const plain = decrypt(firstMsg.content, firstMsg.keyVersion);
-              const title = plain.slice(0, 50);
-              await prisma.chatSession.update({
-                where: { id: sessionId },
-                data: { title, updatedAt: new Date() },
-              });
-            }
+            const rest = session.topic
+              ? session.topic
+              : firstMsg
+                ? decrypt(firstMsg.content, firstMsg.keyVersion).slice(0, 30)
+                : "Samtale";
+            const title = (modeLabel + ": " + rest).slice(0, 50);
+            await prisma.chatSession.update({
+              where: { id: sessionId },
+              data: { title, updatedAt: new Date() },
+            });
           } else {
             await prisma.chatSession.update({
               where: { id: sessionId },

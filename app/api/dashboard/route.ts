@@ -10,6 +10,7 @@ export async function GET() {
     }
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const startOfToday = new Date(new Date().setHours(0, 0, 0, 0));
 
     const [
       sessionCount,
@@ -19,6 +20,8 @@ export async function GET() {
       mastered,
       dueWords,
       topMistakes,
+      newWordsToday,
+      mistakesToday,
     ] = await Promise.all([
       prisma.chatSession.count({ where: { userId: user.id } }),
       prisma.chatSession.findMany({
@@ -51,7 +54,24 @@ export async function GET() {
           correction: true,
         },
       }),
+      prisma.vocabItem.count({
+        where: {
+          userId: user.id,
+          createdAt: { gte: startOfToday },
+        },
+      }),
+      prisma.mistakePattern.count({
+        where: {
+          userId: user.id,
+          createdAt: { gte: startOfToday },
+        },
+      }),
     ]);
+
+    const dagensMal =
+      dueWords > 0
+        ? { action: "repeter" as const, count: dueWords }
+        : { action: "start_chat" as const };
 
     return NextResponse.json({
       stats: {
@@ -61,6 +81,8 @@ export async function GET() {
         masteredWords: mastered,
         dueWords,
       },
+      iDag: { newWordsToday, mistakesToday },
+      dagensMal,
       recentSessions: recentSessions.map((s) => ({
         id: s.id,
         title: s.title,
