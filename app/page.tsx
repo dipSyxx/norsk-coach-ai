@@ -1,4 +1,4 @@
-import React from "react"
+import React from "react";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -9,6 +9,7 @@ import {
   Sparkles,
   ArrowRight,
 } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 
 export default async function LandingPage() {
   const user = await getSession();
@@ -19,16 +20,12 @@ export default async function LandingPage() {
   return (
     <main className="min-h-screen flex flex-col">
       <header className="flex items-center justify-between px-6 py-4 max-w-6xl mx-auto w-full">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-sm">
-              N
-            </span>
-          </div>
-          <span className="font-display text-xl font-bold text-foreground">
-            NorskCoach
-          </span>
-        </div>
+        <BrandLogo
+          href="/"
+          imageClassName="h-12 w-12"
+          textClassName="text-xl"
+          priority
+        />
         <nav className="flex items-center gap-3">
           <Link
             href="/login"
@@ -53,14 +50,12 @@ export default async function LandingPage() {
           </div>
 
           <h1 className="font-display text-4xl md:text-6xl font-bold text-foreground leading-tight text-balance mb-6">
-            Snakk norsk med{" "}
-            <span className="text-primary">selvtillit</span>
+            Snakk norsk med <span className="text-primary">selvtillit</span>
           </h1>
 
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed text-pretty">
             En personlig AI-veileder som tilpasser seg ditt nivå, retter feil
-            med omtanke, og hjelper deg å bygge ordforråd gjennom ekte
-            samtaler.
+            med omtanke, og hjelper deg å bygge ordforråd gjennom ekte samtaler.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">

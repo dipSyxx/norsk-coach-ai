@@ -15,6 +15,7 @@ import {
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { BrandLogo } from "@/components/brand-logo";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -36,16 +37,11 @@ export function AppNav() {
     <>
       {/* Mobile header */}
       <header className="flex md:hidden items-center justify-between px-4 py-3 border-b border-border bg-card">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-xs">
-              N
-            </span>
-          </div>
-          <span className="font-display text-lg font-bold text-foreground">
-            NorskCoach
-          </span>
-        </Link>
+        <BrandLogo
+          href="/dashboard"
+          imageClassName="h-12 w-12"
+          textClassName="text-lg"
+        />
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
           className="p-2 text-muted-foreground hover:text-foreground"
@@ -72,7 +68,7 @@ export function AppNav() {
                   "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
                   pathname.startsWith(item.href)
                     ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted",
                 )}
               >
                 <item.icon className="h-5 w-5" />
@@ -92,15 +88,12 @@ export function AppNav() {
 
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 border-r border-border bg-card h-screen sticky top-0">
-        <div className="flex items-center gap-2 px-5 py-5">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-sm">
-              N
-            </span>
-          </div>
-          <span className="font-display text-lg font-bold text-foreground">
-            NorskCoach
-          </span>
+        <div className="px-5 py-5">
+          <BrandLogo
+            href="/dashboard"
+            imageClassName="h-12 w-12"
+            textClassName="text-lg"
+          />
         </div>
 
         <nav className="flex-1 flex flex-col px-3 gap-0.5">
@@ -112,7 +105,7 @@ export function AppNav() {
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                 pathname.startsWith(item.href)
                   ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted",
               )}
             >
               <item.icon className="h-4 w-4" />

@@ -7,6 +7,7 @@ import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BrandLogo } from "@/components/brand-logo";
 import { toast } from "sonner";
 
 function LoginForm() {
@@ -50,16 +51,14 @@ function LoginForm() {
     <main className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-6">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">
-                N
-              </span>
-            </div>
-            <span className="font-display text-xl font-bold text-foreground">
-              NorskCoach
-            </span>
-          </Link>
+          <div className="mb-6">
+            <BrandLogo
+              href="/"
+              imageClassName="h-12 w-12"
+              textClassName="text-xl"
+              priority
+            />
+          </div>
           <h1 className="text-2xl font-bold text-foreground mb-1">
             Velkommen tilbake
           </h1>
@@ -114,11 +113,15 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <main className="min-h-screen flex items-center justify-center px-4">
-        <div className="w-full max-w-sm text-center text-muted-foreground">Laster...</div>
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="min-h-screen flex items-center justify-center px-4">
+          <div className="w-full max-w-sm text-center text-muted-foreground">
+            Laster...
+          </div>
+        </main>
+      }
+    >
       <LoginForm />
     </Suspense>
   );
