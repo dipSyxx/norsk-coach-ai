@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  nullIfBlank,
+  parseBodyWithSchema,
+  vocabCreateSchema,
+} from "@/lib/validation";
 
 export async function GET(req: Request) {
   try {
@@ -65,33 +70,43 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { term, explanation, exampleSentence, sessionId } = await req.json();
-
-    if (!term) {
-      return NextResponse.json(
-        { error: "Term is required" },
-        { status: 400 }
-      );
+    const parsed = await parseBodyWithSchema(req, vocabCreateSchema);
+    if (!parsed.success) {
+      return NextResponse.json(parsed.error, { status: 400 });
     }
 
-    const trimmedTerm = String(term).trim();
+    const { term, explanation, exampleSentence, sessionId } = parsed.data;
+
+    if (sessionId) {
+      const session = await prisma.chatSession.findFirst({
+        where: { id: sessionId, userId: user.id },
+        select: { id: true },
+      });
+      if (!session) {
+        return NextResponse.json(
+          { error: "Session not found" },
+          { status: 404 }
+        );
+      }
+    }
+
     const nextReviewAt = new Date(Date.now() + 12 * 60 * 60 * 1000); // 0.5 days
 
     const item = await prisma.vocabItem.upsert({
       where: {
-        userId_term: { userId: user.id, term: trimmedTerm },
+        userId_term: { userId: user.id, term },
       },
       create: {
         userId: user.id,
         sessionId: sessionId ?? null,
-        term: trimmedTerm,
-        explanation: explanation ?? null,
-        exampleSentence: exampleSentence ?? null,
+        term,
+        explanation: nullIfBlank(explanation),
+        exampleSentence: nullIfBlank(exampleSentence),
         nextReviewAt,
       },
       update: {
-        explanation: explanation ?? null,
-        exampleSentence: exampleSentence ?? null,
+        explanation: nullIfBlank(explanation),
+        exampleSentence: nullIfBlank(exampleSentence),
         ...(sessionId != null && { sessionId }),
       },
     });

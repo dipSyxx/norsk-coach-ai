@@ -1,12 +1,21 @@
 /**
  * Check user content with OpenAI Moderation API.
- * Returns true if content is safe, false if flagged.
+ * In production, moderation outage blocks requests (fail-closed).
+ * In development, moderation outage is allowed (fail-open).
  */
-export async function isContentSafe(input: string): Promise<{ safe: boolean; categories?: string[] }> {
+export async function isContentSafe(input: string): Promise<{
+  safe: boolean;
+  categories?: string[];
+  reason?: "FLAGGED" | "OUTAGE";
+}> {
   const key = process.env.OPENAI_API_KEY;
+  const isProd = process.env.NODE_ENV === "production";
   if (!key || !input?.trim()) {
     return { safe: true };
   }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6_000);
 
   try {
     const res = await fetch("https://api.openai.com/v1/moderations", {
@@ -16,10 +25,13 @@ export async function isContentSafe(input: string): Promise<{ safe: boolean; cat
         Authorization: `Bearer ${key}`,
       },
       body: JSON.stringify({ input: input.slice(0, 32_000) }),
+      signal: controller.signal,
     });
 
     if (!res.ok) {
-      return { safe: true }; // Fail open to avoid blocking on API errors
+      return isProd
+        ? { safe: false, reason: "OUTAGE" }
+        : { safe: true };
     }
 
     const data = (await res.json()) as {
@@ -36,8 +48,10 @@ export async function isContentSafe(input: string): Promise<{ safe: boolean; cat
         if (flagged) categories.push(name);
       }
     }
-    return { safe: false, categories };
+    return { safe: false, categories, reason: "FLAGGED" };
   } catch {
-    return { safe: true };
+    return isProd ? { safe: false, reason: "OUTAGE" } : { safe: true };
+  } finally {
+    clearTimeout(timeout);
   }
 }

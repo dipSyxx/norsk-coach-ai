@@ -8,12 +8,17 @@ const CURRENT_KEY_VERSION = 1;
 
 function getKey(): Buffer | null {
   const raw = process.env.DATA_ENCRYPTION_KEY;
-  if (!raw || raw.length < 32) return null;
-  // Support hex (64 chars) or base64
+  if (!raw) return null;
+
+  // Support hex (64 chars) or base64.
+  let decoded: Buffer;
   if (/^[0-9a-fA-F]{64}$/.test(raw)) {
-    return Buffer.from(raw, "hex");
+    decoded = Buffer.from(raw, "hex");
+  } else {
+    decoded = Buffer.from(raw, "base64");
   }
-  return Buffer.from(raw, "base64");
+
+  return decoded.length === KEY_LENGTH ? decoded : null;
 }
 
 /**
@@ -70,4 +75,12 @@ export function decrypt(payload: string, keyVersion: number): string {
 
 export function isEncryptionEnabled(): boolean {
   return getKey() !== null;
+}
+
+export function isEncryptionRequired(): boolean {
+  return process.env.NODE_ENV === "production";
+}
+
+export function isEncryptionReadyForRuntime(): boolean {
+  return !isEncryptionRequired() || isEncryptionEnabled();
 }

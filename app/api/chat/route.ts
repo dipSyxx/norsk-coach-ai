@@ -4,7 +4,11 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildSystemPrompt } from "@/lib/system-prompt";
 import { extractionSchema } from "@/lib/extract-schema";
-import { encrypt, decrypt } from "@/lib/encryption";
+import {
+  decrypt,
+  encrypt,
+  isEncryptionReadyForRuntime,
+} from "@/lib/encryption";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isContentSafe } from "@/lib/moderation";
 import type { PrismaClient } from "@prisma/client";
@@ -20,6 +24,20 @@ export async function POST(req: Request) {
     const user = await getSession();
     if (!user) {
       return new Response("Unauthorized", { status: 401 });
+    }
+
+    if (!isEncryptionReadyForRuntime()) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "Message encryption is not configured for this environment.",
+          code: "ENCRYPTION_NOT_CONFIGURED",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
     }
 
     const rateLimit = checkRateLimit(user.id);
@@ -68,6 +86,17 @@ export async function POST(req: Request) {
     if (userContent.trim()) {
       const moderation = await isContentSafe(userContent);
       if (!moderation.safe) {
+        if (moderation.reason === "OUTAGE") {
+          return new Response(
+            JSON.stringify({
+              error:
+                "Message screening is temporarily unavailable. Please try again shortly.",
+              code: "MODERATION_UNAVAILABLE",
+            }),
+            { status: 503, headers: { "Content-Type": "application/json" } }
+          );
+        }
+
         return new Response(
           JSON.stringify({
             error: "Your message could not be sent. Please keep the conversation appropriate for a language learning context.",

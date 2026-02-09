@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs";
+import { deleteAccountSchema, parseBodyWithSchema } from "@/lib/validation";
 
 export async function POST(req: Request) {
   try {
@@ -9,11 +11,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json().catch(() => ({}));
-    if (body.confirm !== "DELETE") {
+    const parsed = await parseBodyWithSchema(req, deleteAccountSchema);
+    if (!parsed.success) {
+      return NextResponse.json(parsed.error, { status: 400 });
+    }
+
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { passwordHash: true },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const isValidPassword = await bcrypt.compare(
+      parsed.data.password,
+      dbUser.passwordHash
+    );
+
+    if (!isValidPassword) {
       return NextResponse.json(
-        { error: "Confirmation required. Send { confirm: 'DELETE' }." },
-        { status: 400 }
+        { error: "Incorrect password" },
+        { status: 401 }
       );
     }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { parseBodyWithSchema, vocabReviewSchema } from "@/lib/validation";
 
 export async function POST(req: Request) {
   try {
@@ -9,14 +10,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { itemId, knew } = await req.json();
-
-    if (!itemId) {
-      return NextResponse.json(
-        { error: "Item ID is required" },
-        { status: 400 }
-      );
+    const parsed = await parseBodyWithSchema(req, vocabReviewSchema);
+    if (!parsed.success) {
+      return NextResponse.json(parsed.error, { status: 400 });
     }
+
+    const { itemId, knew } = parsed.data;
 
     const item = await prisma.vocabItem.findFirst({
       where: { id: itemId, userId: user.id },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import { SessionSidebar } from "@/components/session-sidebar";
@@ -23,9 +23,7 @@ export function ChatInterface() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const sessionParam = searchParams.get("session");
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(
-    sessionParam
-  );
+  const activeSessionId = sessionParam;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [vocabRefreshKey, setVocabRefreshKey] = useState(0);
 
@@ -43,13 +41,6 @@ export function ChatInterface() {
   );
   const sessions = sessionsData?.sessions || [];
 
-  // Update active session from URL
-  useEffect(() => {
-    if (sessionParam) {
-      setActiveSessionId(sessionParam);
-    }
-  }, [sessionParam]);
-
   const handleNewSession = useCallback(
     async (mode: string = "free_chat") => {
       try {
@@ -60,7 +51,6 @@ export function ChatInterface() {
         });
         const data = await res.json();
         if (data.session) {
-          setActiveSessionId(data.session.id);
           router.push(`/chat?session=${data.session.id}`);
           mutate("/api/sessions");
           setSidebarOpen(false);
@@ -74,7 +64,6 @@ export function ChatInterface() {
 
   const handleSelectSession = useCallback(
     (id: string) => {
-      setActiveSessionId(id);
       router.push(`/chat?session=${id}`);
       setSidebarOpen(false);
     },
@@ -87,7 +76,6 @@ export function ChatInterface() {
         await fetch(`/api/sessions/${id}`, { method: "DELETE" });
         mutate("/api/sessions");
         if (activeSessionId === id) {
-          setActiveSessionId(null);
           router.push("/chat");
         }
       } catch (err) {

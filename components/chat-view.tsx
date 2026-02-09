@@ -60,7 +60,7 @@ export function ChatView({
   const [clearing, setClearing] = useState(false);
   const prevStatusRef = useRef<string | undefined>(undefined);
 
-  const { messages, sendMessage, status, setMessages, error } = useChat({
+  const { messages, sendMessage, status, setMessages } = useChat({
     id: sessionId || undefined,
     transport: new DefaultChatTransport({
       api: "/api/chat",

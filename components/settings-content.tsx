@@ -68,7 +68,7 @@ export function SettingsContent({
   const [exporting, setExporting] = useState(false);
   const [saved, setSaved] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deletePassword, setDeletePassword] = useState("");
   const [deleting, setDeleting] = useState(false);
 
   const isDirty = useMemo(
@@ -85,10 +85,19 @@ export function SettingsContent({
   async function handleSave() {
     setSaving(true);
     try {
+      const payload = {
+        name: data.name,
+        level: data.level,
+        goal: data.goal,
+        coachStyle: data.coachStyle,
+        explanationLanguage: data.explanationLanguage,
+        topics: data.topics,
+      };
+
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -134,7 +143,7 @@ export function SettingsContent({
       const res = await fetch("/api/settings/delete-account", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirm: "DELETE" }),
+        body: JSON.stringify({ password: deletePassword }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -142,7 +151,7 @@ export function SettingsContent({
         return;
       }
       setDeleteDialogOpen(false);
-      setDeleteConfirm("");
+      setDeletePassword("");
       toast.success("Konto slettet");
       await signOut({ callbackUrl: "/" });
     } catch {
@@ -384,7 +393,7 @@ export function SettingsContent({
             open={deleteDialogOpen}
             onOpenChange={(open) => {
               setDeleteDialogOpen(open);
-              if (!open) setDeleteConfirm("");
+              if (!open) setDeletePassword("");
             }}
           >
             <AlertDialogTrigger asChild>
@@ -396,20 +405,23 @@ export function SettingsContent({
               <AlertDialogHeader>
                 <AlertDialogTitle>Slett konto</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Er du sikker på at du vil slette kontoen din? Alle samtaler, meldinger, ordforråd og vanlige feil vil bli slettet permanent. Skriv DELETE nedenfor for å bekrefte.
+                  Er du sikker på at du vil slette kontoen din? Alle samtaler,
+                  meldinger, ordforråd og vanlige feil vil bli slettet
+                  permanent. Skriv passordet ditt for å bekrefte.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <div className="py-2">
-                <Label htmlFor="delete-confirm" className="text-sm">
-                  Skriv DELETE for å bekrefte
+                <Label htmlFor="delete-password" className="text-sm">
+                  Passord
                 </Label>
                 <Input
-                  id="delete-confirm"
-                  value={deleteConfirm}
-                  onChange={(e) => setDeleteConfirm(e.target.value)}
-                  placeholder="DELETE"
-                  className="mt-1 font-mono"
-                  autoComplete="off"
+                  id="delete-password"
+                  type="password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  placeholder="Skriv passordet ditt"
+                  className="mt-1"
+                  autoComplete="current-password"
                 />
               </div>
               <AlertDialogFooter>
@@ -417,9 +429,9 @@ export function SettingsContent({
                 <AlertDialogAction
                   onClick={(e) => {
                     e.preventDefault();
-                    if (deleteConfirm === "DELETE") handleDeleteAccount();
+                    if (deletePassword.trim()) handleDeleteAccount();
                   }}
-                  disabled={deleteConfirm !== "DELETE" || deleting}
+                  disabled={!deletePassword.trim() || deleting}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
                   {deleting ? "Sletter..." : "Slett konto permanent"}
