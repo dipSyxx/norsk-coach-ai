@@ -23,7 +23,7 @@ export const SITE_NAME = "NorskCoach AI";
 export const SITE_DESCRIPTION =
   "Practice Norwegian with an AI tutor that adapts to your level. Track vocabulary, correct mistakes, and build fluency at A2-B1 level.";
 export const SITE_URL = normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
-export const OG_IMAGE_PATH = "/og-image.png";
+export const OG_IMAGE_PATH = "/web-app-manifest-512x512.png";
 
 export function toAbsoluteUrl(pathname: string): string {
   return new URL(pathname, `${SITE_URL}/`).toString();

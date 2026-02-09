@@ -28,7 +28,7 @@ export function BrandLogo({
         )}
       >
         <Image
-          src="/NorskCoachLogo.png"
+          src="/icon1.png"
           alt="NorskCoach logo"
           width={96}
           height={96}

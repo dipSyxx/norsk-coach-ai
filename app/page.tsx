@@ -50,8 +50,8 @@ export const metadata: Metadata = {
     images: [
       {
         url: toAbsoluteUrl(OG_IMAGE_PATH),
-        width: 1200,
-        height: 630,
+        width: 512,
+        height: 512,
         alt: `${SITE_NAME} preview image`,
       },
     ],
@@ -75,7 +75,7 @@ export default async function LandingPage() {
     "@type": "Organization",
     name: SITE_NAME,
     url: SITE_URL,
-    logo: toAbsoluteUrl("/icon-512.png"),
+    logo: toAbsoluteUrl("/web-app-manifest-512x512.png"),
     description: SITE_DESCRIPTION,
   };
 

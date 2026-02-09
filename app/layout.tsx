@@ -38,12 +38,21 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
-  manifest: "/site.webmanifest",
+  manifest: "/manifest.json",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
-      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
+      { url: "/icon0.svg", type: "image/svg+xml", sizes: "any" },
+      {
+        url: "/web-app-manifest-192x192.png",
+        type: "image/png",
+        sizes: "192x192",
+      },
+      {
+        url: "/web-app-manifest-512x512.png",
+        type: "image/png",
+        sizes: "512x512",
+      },
     ],
     apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "180x180" }],
     shortcut: ["/favicon.ico"],
@@ -58,8 +67,8 @@ export const metadata: Metadata = {
     images: [
       {
         url: toAbsoluteUrl(OG_IMAGE_PATH),
-        width: 1200,
-        height: 630,
+        width: 512,
+        height: 512,
         alt: `${SITE_NAME} preview image`,
       },
     ],
