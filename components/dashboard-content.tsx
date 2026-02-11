@@ -65,7 +65,7 @@ export function DashboardContent() {
         </div>
         {dagensMal.action === "repeter" ? (
           <Link
-            href="/vocab?filter=due"
+            href="/vocab/quiz"
             className="flex items-center justify-between group"
           >
             <span className="text-sm text-muted-foreground">
@@ -142,7 +142,7 @@ export function DashboardContent() {
 
         {stats?.dueWords ? (
           <Link
-            href="/vocab?filter=due"
+            href="/vocab/quiz"
             className="flex items-center gap-4 bg-accent text-accent-foreground rounded-xl p-5 hover:opacity-90 transition-opacity"
           >
             <div className="h-10 w-10 rounded-lg bg-accent-foreground/20 flex items-center justify-center flex-shrink-0">
