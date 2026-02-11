@@ -22,6 +22,7 @@ model User {
   level              String    @default("A2")
   coachStyle         String    @default("friendly") @map("coach_style")
   explanationLanguage String  @default("norwegian") @map("explanation_language")
+  timeZone           String    @default("UTC") @map("time_zone")
   topics             String[] @default([])
   goal               String    @default("snakke")
   onboardingComplete Boolean   @default(false) @map("onboarding_complete")
@@ -33,6 +34,10 @@ model User {
   chatSessions         ChatSession[]
   vocabItems           VocabItem[]
   mistakePatterns      MistakePattern[]
+  quizRuns             QuizRun[]
+  quizRunAnswers       QuizRunAnswer[]
+  dailyLearningStats   DailyLearningStat[]
+  learningProfile      UserLearningProfile?
 
   @@map("users")
 }
@@ -124,6 +129,7 @@ model VocabItem {
 
   user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   session ChatSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  quizRunAnswers QuizRunAnswer[]
 
   @@unique([userId, term])
   @@index([userId, nextReviewAt(sort: Asc)])
@@ -147,4 +153,107 @@ model MistakePattern {
   @@unique([userId, mistakeType])
   @@index([userId])
   @@map("mistake_patterns")
+}
+
+model QuizRun {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  source         String    @default("vocab_quiz")
+  plannedCards   Int       @default(10) @map("planned_cards")
+  status         String    @default("started")
+  timeZone       String    @default("UTC") @map("time_zone")
+  startedAt      DateTime  @default(now()) @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  exitedAt       DateTime? @map("exited_at")
+  answeredCount  Int       @default(0) @map("answered_count")
+  knewCount      Int       @default(0) @map("knew_count")
+  didntKnowCount Int       @default(0) @map("didnt_know_count")
+  durationSec    Int?      @map("duration_sec")
+  unknownRatio   Float?    @map("unknown_ratio")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers QuizRunAnswer[]
+
+  @@index([userId, startedAt(sort: Desc)])
+  @@index([status, startedAt(sort: Desc)])
+  @@map("quiz_runs")
+}
+
+model QuizRunAnswer {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quizRunId    String   @map("quiz_run_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  vocabItemId  String   @map("vocab_item_id") @db.Uuid
+  knew         Boolean
+  repeatCount  Int      @default(0) @map("repeat_count")
+  attemptIndex Int      @map("attempt_index")
+  answeredAt   DateTime @default(now()) @map("answered_at")
+
+  quizRun   QuizRun   @relation(fields: [quizRunId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vocabItem VocabItem @relation(fields: [vocabItemId], references: [id], onDelete: Cascade)
+
+  @@unique([quizRunId, attemptIndex])
+  @@index([userId, answeredAt(sort: Desc)])
+  @@map("quiz_run_answers")
+}
+
+model DailyLearningStat {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  statDate           DateTime @map("stat_date")
+  timeZone           String   @default("UTC") @map("time_zone")
+  quizStartedCount   Int      @default(0) @map("quiz_started_count")
+  quizCompletedCount Int      @default(0) @map("quiz_completed_count")
+  reviewCount        Int      @default(0) @map("review_count")
+  answeredCount      Int      @default(0) @map("answered_count")
+  didntKnowCount     Int      @default(0) @map("didnt_know_count")
+  unknownRatioRaw    Float?   @map("unknown_ratio_raw")
+  active             Boolean  @default(false)
+  streakAtEndOfDay   Int      @default(0) @map("streak_at_end_of_day")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, statDate])
+  @@index([statDate])
+  @@map("daily_learning_stats")
+}
+
+model UserLearningProfile {
+  userId         String    @id @map("user_id") @db.Uuid
+  firstActiveDate DateTime? @map("first_active_date")
+  lastActiveDate  DateTime? @map("last_active_date")
+  currentStreak   Int       @default(0) @map("current_streak")
+  longestStreak   Int       @default(0) @map("longest_streak")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_learning_profiles")
+}
+
+model RetentionMetric {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cohortDate    DateTime @map("cohort_date")
+  dayOffset     Int      @map("day_offset")
+  cohortSize    Int      @map("cohort_size")
+  retainedUsers Int      @map("retained_users")
+  retentionRate Float    @map("retention_rate")
+  calculatedAt  DateTime @default(now()) @map("calculated_at")
+
+  @@unique([cohortDate, dayOffset])
+  @@index([cohortDate])
+  @@map("retention_metrics")
+}
+
+model AnalyticsCursor {
+  id                 String   @id
+  lastReconciledDate DateTime @map("last_reconciled_date")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("analytics_cursor")
 }

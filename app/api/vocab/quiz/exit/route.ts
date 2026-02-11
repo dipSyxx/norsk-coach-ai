@@ -1,18 +1,15 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { ensureAnalyticsMaintenanceRun } from "@/lib/analytics/maintenance";
-import {
-  AnalyticsServiceError,
-  recordQuizAnswerAndReview,
-} from "@/lib/analytics/service";
-import { parseBodyWithSchema, vocabReviewSchema } from "@/lib/validation";
+import { AnalyticsServiceError, recordQuizExited } from "@/lib/analytics/service";
+import { parseBodyWithSchema, vocabQuizExitSchema } from "@/lib/validation";
 
 export async function POST(req: Request) {
   try {
     try {
       await ensureAnalyticsMaintenanceRun();
     } catch (error) {
-      console.error("Review maintenance failed (non-critical):", error);
+      console.error("Quiz exit maintenance failed (non-critical):", error);
     }
 
     const user = await getSession();
@@ -20,32 +17,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const parsed = await parseBodyWithSchema(req, vocabReviewSchema);
+    const parsed = await parseBodyWithSchema(req, vocabQuizExitSchema);
     if (!parsed.success) {
       return NextResponse.json(parsed.error, { status: 400 });
     }
 
-    const { itemId, knew } = parsed.data;
-    const result = await recordQuizAnswerAndReview({
+    const result = await recordQuizExited({
       userId: user.id,
-      itemId,
-      knew,
       quizRunId: parsed.data.quizRunId,
-      attemptIndex: parsed.data.attemptIndex,
-      repeatCount: parsed.data.repeatCount,
+      durationSec: parsed.data.durationSec,
     });
 
-    return NextResponse.json({
-      strength: result.strength,
-      idempotent: result.idempotent,
-    });
+    return NextResponse.json(result);
   } catch (error) {
     if (error instanceof AnalyticsServiceError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
-    console.error("Vocab review error:", error);
+
+    console.error("Quiz exit error:", error);
     return NextResponse.json(
-      { error: "Failed to review word" },
+      { error: "Failed to exit quiz" },
       { status: 500 }
     );
   }

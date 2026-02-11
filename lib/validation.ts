@@ -118,6 +118,40 @@ export const vocabReviewSchema = z
   .object({
     itemId: z.string().uuid(),
     knew: z.boolean(),
+    quizRunId: z.string().uuid().optional().nullable(),
+    attemptIndex: z.number().int().min(1).max(10_000).optional(),
+    repeatCount: z.number().int().min(0).max(10).optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.quizRunId && value.attemptIndex == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["attemptIndex"],
+        message: "attemptIndex is required when quizRunId is provided",
+      });
+    }
+  });
+
+export const vocabQuizStartSchema = z
+  .object({
+    plannedCards: z.number().int().min(1).max(100).default(10),
+    source: z.string().trim().min(1).max(50).optional().nullable(),
+    timeZone: z.string().trim().min(1).max(80).optional().nullable(),
+  })
+  .strict();
+
+export const vocabQuizCompleteSchema = z
+  .object({
+    quizRunId: z.string().uuid(),
+    durationSec: z.number().int().min(0).max(24 * 60 * 60).optional().nullable(),
+  })
+  .strict();
+
+export const vocabQuizExitSchema = z
+  .object({
+    quizRunId: z.string().uuid(),
+    durationSec: z.number().int().min(0).max(24 * 60 * 60).optional().nullable(),
   })
   .strict();
 

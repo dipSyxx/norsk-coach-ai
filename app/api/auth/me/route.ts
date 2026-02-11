@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { normalizeTimeZone } from "@/lib/analytics/date";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,7 @@ export async function GET() {
   )
     ? rawExplanationLanguage
     : "norwegian";
+  const timeZone = normalizeTimeZone(session.user.timeZone ?? "UTC");
 
   return NextResponse.json({
     user: {
@@ -29,6 +31,7 @@ export async function GET() {
       level: session.user.level,
       coachStyle: session.user.coachStyle,
       explanationLanguage,
+      timeZone,
       topics: session.user.topics,
       goal: session.user.goal,
       onboardingComplete: session.user.onboardingComplete,

@@ -10,6 +10,7 @@ export type SessionUser = {
   level: string;
   coachStyle: string;
   explanationLanguage: string;
+  timeZone: string;
   topics: string[];
   goal: string;
   onboardingComplete: boolean;
@@ -71,6 +72,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             level: true,
             coachStyle: true,
             explanationLanguage: true,
+            timeZone: true,
             topics: true,
             goal: true,
             onboardingComplete: true,
@@ -80,6 +82,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           session.user.level = full.level;
           session.user.coachStyle = full.coachStyle;
           session.user.explanationLanguage = full.explanationLanguage;
+          session.user.timeZone = full.timeZone;
           session.user.topics = full.topics;
           session.user.goal = full.goal;
           session.user.onboardingComplete = full.onboardingComplete;

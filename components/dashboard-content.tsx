@@ -27,6 +27,12 @@ interface DashboardData {
   };
   dagensMal?: { action: "repeter"; count: number } | { action: "start_chat" };
   iDag?: { newWordsToday: number; mistakesToday: number };
+  learning?: {
+    currentStreak: number;
+    longestStreak: number;
+    quizCompletionRate7d: number | null;
+    unknownRatio7d: number | null;
+  };
   recentSessions: Array<{
     id: string;
     title: string;
@@ -67,6 +73,12 @@ export function DashboardContent() {
   const stats = data?.stats;
   const dagensMal = data?.dagensMal ?? { action: "start_chat" as const };
   const iDag = data?.iDag ?? { newWordsToday: 0, mistakesToday: 0 };
+  const learning = data?.learning ?? {
+    currentStreak: 0,
+    longestStreak: 0,
+    quizCompletionRate7d: null,
+    unknownRatio7d: null,
+  };
   const sessions = data?.recentSessions || [];
   const mistakes = data?.topMistakes || [];
 
@@ -132,6 +144,23 @@ export function DashboardContent() {
           value={stats?.dueWords ?? 0}
           icon={<AlertTriangle className="h-4 w-4" />}
           highlight={!!stats?.dueWords}
+        />
+      </motion.div>
+
+      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <StatCard
+          label="Streak nÃ¥"
+          value={learning.currentStreak}
+          icon={<Target className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Lengste streak"
+          value={learning.longestStreak}
+          icon={<TrendingUp className="h-4 w-4" />}
+        />
+        <RatioCard
+          completionRate7d={learning.quizCompletionRate7d}
+          unknownRatio7d={learning.unknownRatio7d}
         />
       </motion.div>
 
@@ -291,9 +320,50 @@ function DashboardSkeleton() {
         <Skeleton className="h-20 rounded-xl" />
         <Skeleton className="h-20 rounded-xl" />
       </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Skeleton className="h-24 rounded-xl" />
+        <Skeleton className="h-24 rounded-xl" />
+        <Skeleton className="h-24 rounded-xl" />
+      </div>
       <Skeleton className="h-48 rounded-xl" />
     </div>
   );
+}
+
+function RatioCard({
+  completionRate7d,
+  unknownRatio7d,
+}: {
+  completionRate7d: number | null;
+  unknownRatio7d: number | null;
+}) {
+  return (
+    <motion.div
+      whileHover={{ y: -2, scale: 1.01 }}
+      transition={{ type: "spring", stiffness: 320, damping: 24 }}
+      className="rounded-xl border p-4 bg-card border-border"
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <TrendingUp className="h-4 w-4 text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">LÃ¦ring (7d)</span>
+      </div>
+      <div className="text-sm text-foreground">
+        Quiz fullfÃ¸rt:{" "}
+        <span className="font-semibold">
+          {formatPercent(completionRate7d)}
+        </span>
+      </div>
+      <div className="text-sm text-foreground mt-1">
+        Vet ikke-ratio:{" "}
+        <span className="font-semibold">{formatPercent(unknownRatio7d)}</span>
+      </div>
+    </motion.div>
+  );
+}
+
+function formatPercent(value: number | null): string {
+  if (value == null) return "-";
+  return `${Math.round(value * 100)}%`;
 }
 
 function formatMode(mode: string): string {

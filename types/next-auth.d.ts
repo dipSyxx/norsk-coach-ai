@@ -6,6 +6,7 @@ declare module "next-auth" {
     level?: string;
     coachStyle?: string;
     explanationLanguage?: string;
+    timeZone?: string;
     topics?: string[];
     goal?: string;
     onboardingComplete?: boolean;
@@ -17,6 +18,7 @@ declare module "next-auth" {
       level: string;
       coachStyle: string;
       explanationLanguage: string;
+      timeZone: string;
       topics: string[];
       goal: string;
       onboardingComplete: boolean;

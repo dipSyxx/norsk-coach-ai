@@ -76,6 +76,9 @@ export function VocabQuizContent() {
   const [isRevealed, setIsRevealed] = useState(false);
   const [isStartingQuiz, setIsStartingQuiz] = useState(false);
   const [isSubmittingQuizAnswer, setIsSubmittingQuizAnswer] = useState(false);
+  const [quizRunId, setQuizRunId] = useState<string | null>(null);
+  const [quizAttemptIndex, setQuizAttemptIndex] = useState(1);
+  const [quizStartedAtMs, setQuizStartedAtMs] = useState<number | null>(null);
 
   const currentQuizCard = quizQueue[0] ?? null;
   const quizProgressTotal = quizStats.answered + quizQueue.length;
@@ -94,6 +97,59 @@ export function VocabQuizContent() {
       mutate("/api/vocab?filter=mastered"),
     ]);
   }, []);
+
+  const buildDurationSec = useCallback(() => {
+    if (!quizStartedAtMs) return null;
+    return Math.max(0, Math.round((Date.now() - quizStartedAtMs) / 1000));
+  }, [quizStartedAtMs]);
+
+  const completeQuizRun = useCallback(async () => {
+    if (!quizRunId) return true;
+
+    const durationSec = buildDurationSec();
+    const res = await fetch("/api/vocab/quiz/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        quizRunId,
+        ...(durationSec != null ? { durationSec } : {}),
+      }),
+    });
+
+    if (!res.ok) {
+      return false;
+    }
+
+    setQuizRunId(null);
+    return true;
+  }, [buildDurationSec, quizRunId]);
+
+  const sendQuizExit = useCallback(async () => {
+    if (!quizRunId || quizMode !== "running") return;
+
+    const durationSec = buildDurationSec();
+    try {
+      await fetch("/api/vocab/quiz/exit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          quizRunId,
+          ...(durationSec != null ? { durationSec } : {}),
+        }),
+      });
+      setQuizRunId(null);
+    } catch {
+      // non-blocking
+    }
+  }, [buildDurationSec, quizMode, quizRunId]);
+
+  const handleReturnToVocab = useCallback(async () => {
+    if (quizMode === "running") {
+      await sendQuizExit();
+    }
+    router.push("/vocab");
+  }, [quizMode, router, sendQuizExit]);
 
   const startQuiz = useCallback(async () => {
     if (startLockRef.current) return;
@@ -114,6 +170,9 @@ export function VocabQuizContent() {
         setQuizQueue([]);
         setQuizStats(createEmptyQuizStats());
         setIsRevealed(false);
+        setQuizRunId(null);
+        setQuizAttemptIndex(1);
+        setQuizStartedAtMs(null);
         setQuizMode("empty");
         return;
       }
@@ -128,12 +187,37 @@ export function VocabQuizContent() {
           repeatCount: 0,
         }));
 
+      const startRes = await fetch("/api/vocab/quiz/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plannedCards: selectedItems.length,
+          source: "vocab_quiz",
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        }),
+      });
+
+      if (!startRes.ok) {
+        throw new Error("Failed to start quiz run");
+      }
+
+      const startPayload = (await startRes.json()) as {
+        quizRunId: string;
+        startedAt: string;
+      };
+
       setQuizQueue(selectedItems);
       setQuizStats(createEmptyQuizStats());
       setIsRevealed(false);
+      setQuizRunId(startPayload.quizRunId);
+      setQuizAttemptIndex(1);
+      setQuizStartedAtMs(Date.parse(startPayload.startedAt) || Date.now());
       setQuizMode("running");
     } catch {
       toast.error("Kunne ikke starte quiz");
+      setQuizRunId(null);
+      setQuizAttemptIndex(1);
+      setQuizStartedAtMs(null);
       setQuizMode("empty");
     } finally {
       setIsStartingQuiz(false);
@@ -145,6 +229,26 @@ export function VocabQuizContent() {
     void startQuiz();
   }, [startQuiz]);
 
+  useEffect(() => {
+    return () => {
+      if (!quizRunId || quizMode !== "running") return;
+
+      const durationSec = quizStartedAtMs
+        ? Math.max(0, Math.round((Date.now() - quizStartedAtMs) / 1000))
+        : null;
+
+      void fetch("/api/vocab/quiz/exit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          quizRunId,
+          ...(durationSec != null ? { durationSec } : {}),
+        }),
+      });
+    };
+  }, [quizMode, quizRunId, quizStartedAtMs]);
+
   async function handleQuizAnswer(knew: boolean) {
     if (!currentQuizCard || isSubmittingQuizAnswer) return;
 
@@ -153,7 +257,13 @@ export function VocabQuizContent() {
       const res = await fetch("/api/vocab/review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId: currentQuizCard.itemId, knew }),
+        body: JSON.stringify({
+          itemId: currentQuizCard.itemId,
+          knew,
+          quizRunId,
+          attemptIndex: quizAttemptIndex,
+          repeatCount: currentQuizCard.repeatCount,
+        }),
       });
 
       if (!res.ok) {
@@ -174,11 +284,16 @@ export function VocabQuizContent() {
         knew: prev.knew + (knew ? 1 : 0),
         didntKnow: prev.didntKnow + (knew ? 0 : 1),
       }));
+      setQuizAttemptIndex((prev) => prev + 1);
       setIsRevealed(false);
 
       await refreshVocabCaches();
 
       if (remaining.length === 0) {
+        const completed = await completeQuizRun();
+        if (!completed) {
+          toast.error("Kunne ikke lagre quiz-resultatet.");
+        }
         setQuizMode("completed");
       }
     } catch {
@@ -207,8 +322,8 @@ export function VocabQuizContent() {
           <h2 className="font-semibold text-foreground text-base">Ordquiz</h2>
         </div>
         <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
-          <Button type="button" size="sm" variant="outline" asChild>
-            <Link href="/vocab">Til ordliste</Link>
+          <Button type="button" size="sm" variant="outline" onClick={() => void handleReturnToVocab()}>
+            Til ordliste
           </Button>
         </motion.div>
       </div>
@@ -352,7 +467,7 @@ export function VocabQuizContent() {
                 </Button>
               </motion.div>
               <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
-                <Button type="button" className="w-full" variant="outline" onClick={() => router.push("/vocab")}>Tilbake til ordliste</Button>
+                <Button type="button" className="w-full" variant="outline" onClick={() => void handleReturnToVocab()}>Tilbake til ordliste</Button>
               </motion.div>
             </div>
           </motion.div>
