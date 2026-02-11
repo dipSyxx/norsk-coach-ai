@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildSystemPrompt } from "@/lib/system-prompt";
 import { extractionSchema } from "@/lib/extract-schema";
+import { prepareVocabTerm } from "@/lib/vocab-normalization";
 import {
   decrypt,
   encrypt,
@@ -14,6 +15,23 @@ import { isContentSafe } from "@/lib/moderation";
 import type { PrismaClient } from "@prisma/client";
 
 const MAX_INPUT_LENGTH = 4000;
+const EXPLANATION_LANGUAGE_NAME: Record<string, string> = {
+  norwegian: "Norwegian (bokmaal)",
+  ukrainian: "Ukrainian",
+  english: "English",
+};
+
+const EXPLANATION_REQUEST_REGEXES = [
+  /\b(hva betyr|betyr|forklar|definer|oversett|oversetting)\b/i,
+  /\b(what does|mean|meaning|define|definition|translate|translation)\b/i,
+  /(що означає|що значить|поясни|пояснити|значення|переклад)/i,
+];
+
+function isExplanationRequest(text: string): boolean {
+  const normalized = text.trim();
+  if (!normalized) return false;
+  return EXPLANATION_REQUEST_REGEXES.some((re) => re.test(normalized));
+}
 
 export async function POST(req: Request) {
   try {
@@ -138,10 +156,16 @@ export async function POST(req: Request) {
       content: decrypt(r.content, r.keyVersion),
     }));
 
-    const systemPrompt = buildSystemPrompt(user, {
+    const baseSystemPrompt = buildSystemPrompt(user, {
       mode: session.mode,
       topic: session.topic ?? undefined,
     });
+
+    const strictExplanationOverride = isExplanationRequest(userContent)
+      ? `\n\nStrict instruction for this reply: The user is asking for meaning/translation/explanation. Write the explanatory text fully in ${EXPLANATION_LANGUAGE_NAME[user.explanation_language] ?? EXPLANATION_LANGUAGE_NAME.norwegian}. Do not switch explanatory prose to any other language.`
+      : "";
+
+    const systemPrompt = `${baseSystemPrompt}${strictExplanationOverride}`;
 
     const result = streamText({
       model: openai("gpt-4.1-mini"),
@@ -222,8 +246,6 @@ const EXPLANATION_LANG_INSTRUCTION: Record<string, string> = {
   ukrainian: "Give the explanation for each vocab item in Ukrainian.",
   english: "Give the explanation for each vocab item in English.",
   norwegian: "Give the explanation for each vocab item in simple Norwegian.",
-  polish: "Give the explanation for each vocab item in Polish.",
-  german: "Give the explanation for each vocab item in German.",
 };
 
 async function extractVocabAndMistakes(
@@ -270,17 +292,41 @@ Return empty arrays only if there is truly nothing to extract.`;
 
   for (const v of output.vocab) {
     if (!v.term?.trim()) continue;
+    const preparedTerm = prepareVocabTerm(v.term);
+    if (!preparedTerm) continue;
+
+    const existingTerm = await prismaClient.vocabItem.findFirst({
+      where: {
+        userId,
+        OR: [
+          {
+            term: {
+              equals: preparedTerm.normalized,
+              mode: "insensitive",
+            },
+          },
+          {
+            term: {
+              equals: preparedTerm.rawTrimmed,
+              mode: "insensitive",
+            },
+          },
+        ],
+      },
+      select: { term: true },
+    });
+
     await prismaClient.vocabItem.upsert({
       where: {
         userId_term: {
           userId,
-          term: v.term.trim(),
+          term: existingTerm?.term ?? preparedTerm.term,
         },
       },
       create: {
         userId,
         sessionId,
-        term: v.term.trim(),
+        term: preparedTerm.term,
         explanation: v.explanation?.trim() ?? null,
         exampleSentence: v.example?.trim() ?? null,
         nextReviewAt: new Date(Date.now() + 12 * 60 * 60 * 1000), // 0.5 days, same as strength 0 in review

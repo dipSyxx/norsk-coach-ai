@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { prepareVocabTerm } from "@/lib/vocab-normalization";
 import {
   nullIfBlank,
   parseBodyWithSchema,
@@ -76,6 +77,14 @@ export async function POST(req: Request) {
     }
 
     const { term, explanation, exampleSentence, sessionId } = parsed.data;
+    const preparedTerm = prepareVocabTerm(term);
+
+    if (!preparedTerm) {
+      return NextResponse.json(
+        { error: "Term must contain letters or numbers" },
+        { status: 400 }
+      );
+    }
 
     if (sessionId) {
       const session = await prisma.chatSession.findFirst({
@@ -92,14 +101,38 @@ export async function POST(req: Request) {
 
     const nextReviewAt = new Date(Date.now() + 12 * 60 * 60 * 1000); // 0.5 days
 
+    const existingTerm = await prisma.vocabItem.findFirst({
+      where: {
+        userId: user.id,
+        OR: [
+          {
+            term: {
+              equals: preparedTerm.normalized,
+              mode: "insensitive",
+            },
+          },
+          {
+            term: {
+              equals: preparedTerm.rawTrimmed,
+              mode: "insensitive",
+            },
+          },
+        ],
+      },
+      select: { term: true },
+    });
+
     const item = await prisma.vocabItem.upsert({
       where: {
-        userId_term: { userId: user.id, term },
+        userId_term: {
+          userId: user.id,
+          term: existingTerm?.term ?? preparedTerm.term,
+        },
       },
       create: {
         userId: user.id,
         sessionId: sessionId ?? null,
-        term,
+        term: preparedTerm.term,
         explanation: nullIfBlank(explanation),
         exampleSentence: nullIfBlank(exampleSentence),
         nextReviewAt,

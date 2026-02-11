@@ -58,8 +58,6 @@ const EXPLANATION_LANGUAGE_OPTIONS = [
   { value: "norwegian", label: "Norsk" },
   { value: "ukrainian", label: "Ukrainsk" },
   { value: "english", label: "Engelsk" },
-  { value: "polish", label: "Polsk" },
-  { value: "german", label: "Tysk" },
 ] as const;
 
 const containerVariants: Variants = {

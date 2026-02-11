@@ -14,15 +14,12 @@ const STYLE_PROMPTS: Record<string, string> = {
 };
 
 const EXPLANATION_LANGUAGE_PROMPTS: Record<string, string> = {
-  norwegian: "Give all explanations in simple Norwegian (bokmaal).",
+  norwegian:
+    "The student's chosen explanation language is Norwegian (bokmaal). Give all explanations in Norwegian (bokmaal).",
   ukrainian:
-    "When the student asks for an explanation or writes in Ukrainian, write the full explanation in Ukrainian. Keep Norwegian example sentences in Norwegian.",
+    "The student's chosen explanation language is Ukrainian. Write all explanations in Ukrainian. Keep Norwegian example sentences in Norwegian.",
   english:
-    "When the student asks for an explanation or writes in English, write the full explanation in English. Keep Norwegian example sentences in Norwegian.",
-  polish:
-    "When the student asks for an explanation or writes in Polish, write the full explanation in Polish. Keep Norwegian example sentences in Norwegian.",
-  german:
-    "When the student asks for an explanation or writes in German, write the full explanation in German. Keep Norwegian example sentences in Norwegian.",
+    "The student's chosen explanation language is English. Write all explanations in English. Keep Norwegian example sentences in Norwegian.",
 };
 
 const GOAL_PROMPTS: Record<string, string> = {
@@ -77,6 +74,8 @@ ${sessionModePart ? `\n${sessionModePart}\n` : ""}
 
 Rules:
 - Write conversation and exercise text in Norwegian (bokmaal). When giving explanations (vocabulary, grammar, word meanings), use the student's chosen explanation language.
+- For definition/meaning/translation requests, the explanation text must be entirely in the chosen explanation language. Do not mix explanation languages in the same explanation.
+- You may keep the target Norwegian word or phrase unchanged, and Norwegian example sentences in Norwegian, but all explanatory prose must stay in the chosen explanation language.
 - Keep your responses at the student's level (${user.level}).
 - When the student makes a mistake, briefly correct it with the pattern: "Rettelse: [correct form] - [short explanation]"
 - After correcting, continue the conversation naturally.

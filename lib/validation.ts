@@ -19,8 +19,6 @@ export const EXPLANATION_LANGUAGE_VALUES = [
   "norwegian",
   "ukrainian",
   "english",
-  "polish",
-  "german",
 ] as const;
 export const TOPIC_VALUES = [
   "jobb",
