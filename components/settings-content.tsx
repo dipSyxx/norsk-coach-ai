@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Download, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AnimatePresence, motion, type Variants } from "motion/react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,6 +61,29 @@ const EXPLANATION_LANGUAGE_OPTIONS = [
   { value: "polish", label: "Polsk" },
   { value: "german", label: "Tysk" },
 ] as const;
+
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.06, delayChildren: 0.02 },
+  },
+};
+
+const sectionVariants: Variants = {
+  hidden: { opacity: 0, y: 14, filter: "blur(4px)" },
+  show: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] },
+  },
+};
+
+const chipMotion = {
+  whileHover: { y: -1, scale: 1.015 },
+  whileTap: { scale: 0.985 },
+} as const;
 
 interface SettingsData {
   name: string;
@@ -175,9 +199,9 @@ export function SettingsContent({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: deletePassword }),
       });
-      const data = await res.json().catch(() => ({}));
+      const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(data.error ?? "Kunne ikke slette konto");
+        toast.error(payload.error ?? "Kunne ikke slette konto");
         return;
       }
       setDeleteDialogOpen(false);
@@ -201,9 +225,13 @@ export function SettingsContent({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Profile */}
-      <section className="bg-card border border-border rounded-xl p-5">
+    <motion.div
+      className="flex flex-col gap-6"
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+    >
+      <motion.section variants={sectionVariants} className="bg-card border border-border rounded-xl p-5">
         <h2 className="font-semibold text-foreground mb-1">Profil</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Oppdater navnet ditt og se kontoinformasjon.
@@ -227,151 +255,185 @@ export function SettingsContent({
             <p className="text-sm text-muted-foreground">{data.email}</p>
           </div>
         </div>
-      </section>
+      </motion.section>
 
-      {/* Learning preferences */}
-      <section className="bg-card border border-border rounded-xl p-5">
-        <h2 className="font-semibold text-foreground mb-1">
-          Læringsinnstillinger
-        </h2>
-        <p className="text-sm text-muted-foreground mb-4">
+      <motion.section
+        variants={sectionVariants}
+        className="relative overflow-hidden bg-card border border-border rounded-xl p-5"
+      >
+        <motion.div
+          aria-hidden
+          className="pointer-events-none absolute -inset-16 bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/0.12),_transparent_58%)]"
+          animate={{ opacity: [0.35, 0.5, 0.35], scale: [1, 1.04, 1] }}
+          transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+        />
+
+        <h2 className="relative font-semibold text-foreground mb-1">Læringsinnstillinger</h2>
+        <p className="relative text-sm text-muted-foreground mb-4">
           Velg nivå, fokus og språk for forklaringer.
         </p>
-        <div className="flex flex-col gap-5">
-          {/* Level */}
+
+        <div className="relative flex flex-col gap-5">
           <div className="flex flex-col gap-2">
             <Label className="text-sm">Nivå</Label>
             <div className="flex gap-2 flex-wrap">
-              {LEVEL_OPTIONS.map((l) => (
-                <button
-                  key={l}
-                  type="button"
-                  onClick={() => setData((p) => ({ ...p, level: l }))}
-                  aria-pressed={data.level === l}
-                  className={cn(
-                    "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                    data.level === l
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {l}
-                </button>
-              ))}
+              {LEVEL_OPTIONS.map((l) => {
+                const active = data.level === l;
+                return (
+                  <motion.button
+                    key={l}
+                    type="button"
+                    onClick={() => setData((p) => ({ ...p, level: l }))}
+                    aria-pressed={active}
+                    animate={active ? { y: -1 } : { y: 0 }}
+                    className={cn(
+                      "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:text-foreground"
+                    )}
+                    {...chipMotion}
+                  >
+                    {l}
+                  </motion.button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Goal */}
           <div className="flex flex-col gap-2">
             <Label className="text-sm">Fokus</Label>
             <div className="flex gap-2 flex-wrap">
-              {GOAL_OPTIONS.map((g) => (
-                <button
-                  key={g.value}
-                  type="button"
-                  onClick={() => setData((p) => ({ ...p, goal: g.value }))}
-                  aria-pressed={data.goal === g.value}
-                  className={cn(
-                    "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                    data.goal === g.value
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {g.label}
-                </button>
-              ))}
+              {GOAL_OPTIONS.map((g) => {
+                const active = data.goal === g.value;
+                return (
+                  <motion.button
+                    key={g.value}
+                    type="button"
+                    onClick={() => setData((p) => ({ ...p, goal: g.value }))}
+                    aria-pressed={active}
+                    animate={active ? { y: -1 } : { y: 0 }}
+                    className={cn(
+                      "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:text-foreground"
+                    )}
+                    {...chipMotion}
+                  >
+                    {g.label}
+                  </motion.button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Coach Style */}
           <div className="flex flex-col gap-2">
             <Label className="text-sm">Veilederstil</Label>
             <div className="flex gap-2 flex-wrap">
-              {COACH_STYLE_OPTIONS.map((s) => (
-                <button
-                  key={s.value}
-                  type="button"
-                  onClick={() =>
-                    setData((p) => ({ ...p, coachStyle: s.value }))
-                  }
-                  aria-pressed={data.coachStyle === s.value}
-                  className={cn(
-                    "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                    data.coachStyle === s.value
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {s.label}
-                </button>
-              ))}
+              {COACH_STYLE_OPTIONS.map((s) => {
+                const active = data.coachStyle === s.value;
+                return (
+                  <motion.button
+                    key={s.value}
+                    type="button"
+                    onClick={() => setData((p) => ({ ...p, coachStyle: s.value }))}
+                    aria-pressed={active}
+                    animate={active ? { y: -1 } : { y: 0 }}
+                    className={cn(
+                      "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:text-foreground"
+                    )}
+                    {...chipMotion}
+                  >
+                    {s.label}
+                  </motion.button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Explanation Language */}
           <div className="flex flex-col gap-2">
             <Label className="text-sm">Forklaringsspråk</Label>
             <div className="flex gap-2 flex-wrap">
-              {EXPLANATION_LANGUAGE_OPTIONS.map((l) => (
-                <button
-                  key={l.value}
-                  type="button"
-                  onClick={() =>
-                    setData((p) => ({
-                      ...p,
-                      explanationLanguage: l.value,
-                    }))
-                  }
-                  aria-pressed={data.explanationLanguage === l.value}
-                  className={cn(
-                    "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                    data.explanationLanguage === l.value
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {l.label}
-                </button>
-              ))}
+              {EXPLANATION_LANGUAGE_OPTIONS.map((l) => {
+                const active = data.explanationLanguage === l.value;
+                return (
+                  <motion.button
+                    key={l.value}
+                    type="button"
+                    onClick={() =>
+                      setData((p) => ({
+                        ...p,
+                        explanationLanguage: l.value,
+                      }))
+                    }
+                    aria-pressed={active}
+                    animate={active ? { y: -1 } : { y: 0 }}
+                    className={cn(
+                      "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:text-foreground"
+                    )}
+                    {...chipMotion}
+                  >
+                    {l.label}
+                  </motion.button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Topics */}
           <div className="flex flex-col gap-2">
             <Label className="text-sm">Temaer</Label>
             <div className="flex gap-2 flex-wrap">
-              {TOPICS.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => toggleTopic(t.id)}
-                  aria-pressed={data.topics.includes(t.id)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                    data.topics.includes(t.id)
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {data.topics.includes(t.id) && (
-                    <Check className="h-3 w-3" />
-                  )}
-                  {t.label}
-                </button>
-              ))}
+              {TOPICS.map((t, index) => {
+                const active = data.topics.includes(t.id);
+                return (
+                  <motion.button
+                    key={t.id}
+                    type="button"
+                    onClick={() => toggleTopic(t.id)}
+                    aria-pressed={active}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.015 }}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:text-foreground"
+                    )}
+                    {...chipMotion}
+                  >
+                    <AnimatePresence mode="wait">
+                      {active && (
+                        <motion.span
+                          key="check"
+                          initial={{ scale: 0.4, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.4, opacity: 0 }}
+                        >
+                          <Check className="h-3 w-3" />
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                    {t.label}
+                  </motion.button>
+                );
+              })}
             </div>
           </div>
         </div>
-      </section>
+      </motion.section>
 
-      {/* Data export */}
-      <section className="bg-card border border-border rounded-xl p-5">
+      <motion.section variants={sectionVariants} className="bg-card border border-border rounded-xl p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="font-semibold text-foreground mb-1">
-              Data og eksport
-            </h2>
+            <h2 className="font-semibold text-foreground mb-1">Data og eksport</h2>
             <p className="text-sm text-muted-foreground">
               Last ned en kopi av dataene dine som JSON.
             </p>
@@ -389,18 +451,16 @@ export function SettingsContent({
         <p className="text-xs text-muted-foreground mt-3">
           Inkluderer samtaler, meldinger, ordforråd og vanlige feil.
         </p>
-      </section>
+      </motion.section>
 
-      {/* Personvern */}
-      <section className="bg-card border border-border rounded-xl p-5">
+      <motion.section variants={sectionVariants} className="bg-card border border-border rounded-xl p-5">
         <h2 className="font-semibold text-foreground mb-1">Personvern</h2>
         <p className="text-sm text-muted-foreground">
           Dataene dine (samtaler, meldinger, ordforråd og vanlige feil) lagres sikkert i vår database. Vi bruker dem kun til å levere tjenesten og forbedre din læringsopplevelse. Data slettes når du sletter kontoen din. Vi deler ikke dine data med tredjeparter for markedsføring.
         </p>
-      </section>
+      </motion.section>
 
-      {/* Delete account */}
-      <section className="bg-card border border-destructive/30 rounded-xl p-5">
+      <motion.section variants={sectionVariants} className="bg-card border border-destructive/30 rounded-xl p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-semibold text-foreground mb-1">Slett konto</h2>
@@ -459,20 +519,27 @@ export function SettingsContent({
             </AlertDialogContent>
           </AlertDialog>
         </div>
-      </section>
+      </motion.section>
 
-      {/* Actions */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <motion.div variants={sectionVariants} className="flex items-center gap-3 flex-wrap">
         <Button onClick={handleSave} disabled={saving || !isDirty}>
           {saving ? "Lagrer..." : "Lagre innstillinger"}
         </Button>
-        {saved && !isDirty && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Check className="h-3 w-3 text-primary" />
-            Lagret
-          </div>
-        )}
-      </div>
-    </div>
+
+        <AnimatePresence>
+          {saved && !isDirty && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              className="flex items-center gap-1 text-xs text-muted-foreground"
+            >
+              <Check className="h-3 w-3 text-primary" />
+              Lagret
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </motion.div>
   );
 }

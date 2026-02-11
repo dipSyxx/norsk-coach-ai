@@ -30,6 +30,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { AnimatePresence, motion } from "motion/react";
 
 interface ChatViewProps {
   sessionId: string | null;
@@ -195,11 +196,20 @@ export function ChatView({
   // Empty state - no session selected
   if (!sessionId) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center px-4">
+      <motion.div
+        className="flex-1 min-h-0 flex flex-col items-center justify-center px-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+      >
         <div className="text-center max-w-sm">
-          <div className="h-16 w-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4">
+          <motion.div
+            className="h-16 w-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4"
+            animate={{ y: [0, -3, 0] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+          >
             <MessageSquare className="h-8 w-8" />
-          </div>
+          </motion.div>
           <h2 className="text-xl font-bold text-foreground mb-2">
             Velkommen til chatten
           </h2>
@@ -231,12 +241,17 @@ export function ChatView({
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col min-w-0">
+    <motion.div
+      className="flex-1 min-h-0 flex flex-col min-w-0"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+    >
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card flex-shrink-0">
         <button
@@ -317,25 +332,35 @@ export function ChatView({
         )}
 
         <div className="max-w-2xl mx-auto flex flex-col gap-4">
-          {messages.map((message) => (
-            <ChatBubble key={message.id} message={message} />
-          ))}
+          <AnimatePresence initial={false}>
+            {messages.map((message) => (
+              <ChatBubble key={message.id} message={message} />
+            ))}
+          </AnimatePresence>
           <div ref={messagesEndRef} />
         </div>
       </div>
 
       {/* Scroll to bottom button */}
-      {showScrollBtn && (
-        <div className="relative">
-          <button
-            onClick={scrollToBottom}
-            className="absolute bottom-2 left-1/2 -translate-x-1/2 p-2 rounded-full bg-card border border-border shadow-sm hover:bg-muted transition-colors"
-            aria-label="Rull ned"
+      <AnimatePresence>
+        {showScrollBtn && (
+          <motion.div
+            className="relative"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.18 }}
           >
-            <ArrowDown className="h-4 w-4 text-muted-foreground" />
-          </button>
-        </div>
-      )}
+            <button
+              onClick={scrollToBottom}
+              className="absolute bottom-2 left-1/2 -translate-x-1/2 p-2 rounded-full bg-card border border-border shadow-sm hover:bg-muted transition-colors"
+              aria-label="Rull ned"
+            >
+              <ArrowDown className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Input */}
       <div className="border-t border-border bg-card px-4 py-3 flex-shrink-0">
@@ -390,7 +415,7 @@ export function ChatView({
           NorskCoach bruker AI. Sjekk viktig informasjon.
         </p>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -415,11 +440,16 @@ function ChatBubble({ message }: { message: UIMessage & { created_at?: string } 
   const timeStr = formatMessageTime(message.created_at);
 
   return (
-    <div
+    <motion.div
+      layout
       className={cn(
         "flex gap-3",
         isUser ? "justify-end" : "justify-start"
       )}
+      initial={{ opacity: 0, y: 8, scale: 0.995 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -6, scale: 0.995 }}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
     >
       {!isUser && (
         <div className="h-7 w-7 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -449,6 +479,6 @@ function ChatBubble({ message }: { message: UIMessage & { created_at?: string } 
           </span>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }

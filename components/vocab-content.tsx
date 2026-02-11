@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { AnimatePresence, motion, type Variants } from "motion/react";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -31,6 +32,24 @@ const FILTERS = [
   { value: "due", label: "Til repetering" },
   { value: "mastered", label: "Mestret" },
 ];
+
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.05, delayChildren: 0.02 },
+  },
+};
+
+const itemVariants: Variants = {
+  hidden: { opacity: 0, y: 12, filter: "blur(4px)" },
+  show: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
+  },
+};
 
 export function VocabContent() {
   const searchParams = useSearchParams();
@@ -76,10 +95,15 @@ export function VocabContent() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2 flex-wrap">
+    <motion.div
+      className="flex flex-col gap-4"
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+    >
+      <motion.div variants={itemVariants} className="flex items-center gap-2 flex-wrap">
         {FILTERS.map((f) => (
-          <button
+          <motion.button
             key={f.value}
             onClick={() => setFilter(f.value)}
             className={cn(
@@ -88,81 +112,98 @@ export function VocabContent() {
                 ? "bg-primary text-primary-foreground"
                 : "bg-muted text-muted-foreground hover:text-foreground",
             )}
+            whileHover={{ y: -1, scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 360, damping: 24 }}
           >
             {f.label}
-          </button>
+          </motion.button>
         ))}
         <div className="ml-auto flex items-center gap-2">
-          <Link
-            href="/vocab/quiz"
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
-          >
-            <RotateCcw className="h-3 w-3" />
-            Start quiz
-          </Link>
-          <button
-            onClick={() => setShowAdd(!showAdd)}
+          <motion.div whileHover={{ y: -1, scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+            <Link
+              href="/vocab/quiz"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Start quiz
+            </Link>
+          </motion.div>
+          <motion.button
+            onClick={() => setShowAdd((v) => !v)}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            whileHover={{ y: -1, scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 360, damping: 24 }}
           >
             {showAdd ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
             {showAdd ? "Avbryt" : "Legg til ord"}
-          </button>
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
 
-      {showAdd && (
-        <form
-          onSubmit={handleAdd}
-          className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3"
-        >
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="term" className="text-xs">
-              Ord / uttrykk
-            </Label>
-            <Input
-              id="term"
-              name="term"
-              placeholder="f.eks. hyggelig"
-              required
-              className="text-sm"
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="explanation" className="text-xs">
-              Forklaring
-            </Label>
-            <Input
-              id="explanation"
-              name="explanation"
-              placeholder="Betyr 'cozy' eller 'nice'"
-              className="text-sm"
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="exampleSentence" className="text-xs">
-              Eksempel
-            </Label>
-            <Input
-              id="exampleSentence"
-              name="exampleSentence"
-              placeholder="Det var en hyggelig kveld."
-              className="text-sm"
-            />
-          </div>
-          <Button type="submit" size="sm" className="self-end">
-            Legg til
-          </Button>
-        </form>
-      )}
+      <AnimatePresence>
+        {showAdd && (
+          <motion.form
+            onSubmit={handleAdd}
+            className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3"
+            initial={{ opacity: 0, y: -8, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: "auto" }}
+            exit={{ opacity: 0, y: -6, height: 0 }}
+            transition={{ duration: 0.22 }}
+          >
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="term" className="text-xs">
+                Ord / uttrykk
+              </Label>
+              <Input
+                id="term"
+                name="term"
+                placeholder="f.eks. hyggelig"
+                required
+                className="text-sm"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="explanation" className="text-xs">
+                Forklaring
+              </Label>
+              <Input
+                id="explanation"
+                name="explanation"
+                placeholder="Betyr 'cozy' eller 'nice'"
+                className="text-sm"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="exampleSentence" className="text-xs">
+                Eksempel
+              </Label>
+              <Input
+                id="exampleSentence"
+                name="exampleSentence"
+                placeholder="Det var en hyggelig kveld."
+                className="text-sm"
+              />
+            </div>
+            <Button type="submit" size="sm" className="self-end">
+              Legg til
+            </Button>
+          </motion.form>
+        )}
+      </AnimatePresence>
 
       {isLoading ? (
-        <div className="flex flex-col gap-2">
+        <motion.div variants={itemVariants} className="flex flex-col gap-2">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-16 rounded-lg" />
           ))}
-        </div>
+        </motion.div>
       ) : items.length === 0 ? (
-        <div className="bg-card border border-border rounded-xl p-8 text-center">
+        <motion.div
+          variants={itemVariants}
+          className="bg-card border border-border rounded-xl p-8 text-center"
+        >
           <BookOpen className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground text-sm mb-1">
             {filter === "due"
@@ -176,39 +217,40 @@ export function VocabContent() {
               ? "Chat med veilederen for å samle nye ord, eller legg til manuelt."
               : "Fortsett å bruke appen for å bygge ordforrådet ditt."}
           </p>
-        </div>
+        </motion.div>
       ) : (
-        <div className="flex flex-col gap-2">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="bg-card border border-border rounded-lg px-4 py-3"
-            >
-              <div className="flex items-start gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-foreground text-sm">
-                      {item.term}
-                    </span>
-                    <StrengthBadge strength={item.strength} />
+        <motion.div variants={itemVariants} className="flex flex-col gap-2">
+          <AnimatePresence initial={false}>
+            {items.map((item) => (
+              <motion.div
+                key={item.id}
+                className="bg-card border border-border rounded-lg px-4 py-3"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                whileHover={{ y: -1, scale: 1.002 }}
+                transition={{ type: "spring", stiffness: 320, damping: 24 }}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-foreground text-sm">{item.term}</span>
+                      <StrengthBadge strength={item.strength} />
+                    </div>
+                    {item.explanation && (
+                      <p className="text-xs text-muted-foreground">{item.explanation}</p>
+                    )}
+                    {item.example_sentence && (
+                      <p className="text-xs text-muted-foreground italic mt-1">{item.example_sentence}</p>
+                    )}
                   </div>
-                  {item.explanation && (
-                    <p className="text-xs text-muted-foreground">
-                      {item.explanation}
-                    </p>
-                  )}
-                  {item.example_sentence && (
-                    <p className="text-xs text-muted-foreground italic mt-1">
-                      {item.example_sentence}
-                    </p>
-                  )}
                 </div>
-              </div>
-            </div>
-          ))}
-        </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }
 

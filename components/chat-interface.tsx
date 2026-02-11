@@ -6,6 +6,7 @@ import useSWR, { mutate } from "swr";
 import { SessionSidebar } from "@/components/session-sidebar";
 import { ChatView } from "@/components/chat-view";
 import { SessionVocabPanel } from "@/components/session-vocab-panel";
+import { motion } from "motion/react";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -86,7 +87,12 @@ export function ChatInterface() {
   );
 
   return (
-    <div className="flex h-[calc(100vh-53px)] md:h-screen">
+    <motion.div
+      className="flex h-[calc(100vh-53px)] md:h-screen min-h-0 overflow-hidden"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+    >
       <SessionSidebar
         sessions={sessions}
         activeSessionId={activeSessionId}
@@ -106,6 +112,6 @@ export function ChatInterface() {
         sessionId={activeSessionId}
         refreshKey={vocabRefreshKey}
       />
-    </div>
+    </motion.div>
   );
 }

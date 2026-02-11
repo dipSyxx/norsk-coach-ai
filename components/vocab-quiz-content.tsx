@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { AnimatePresence, motion, type Variants } from "motion/react";
 
 type QuizMode = "loading" | "running" | "completed" | "empty";
 
@@ -35,6 +36,22 @@ interface QuizStats {
 
 const QUIZ_SESSION_SIZE = 10;
 const QUIZ_MAX_REPEAT = 2;
+
+const contentVariants: Variants = {
+  initial: { opacity: 0, y: 14, filter: "blur(4px)" },
+  animate: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
+  },
+  exit: {
+    opacity: 0,
+    y: -10,
+    filter: "blur(2px)",
+    transition: { duration: 0.2 },
+  },
+};
 
 function createEmptyQuizStats(): QuizStats {
   return { answered: 0, knew: 0, didntKnow: 0 };
@@ -172,7 +189,12 @@ export function VocabQuizContent() {
   }
 
   return (
-    <div className="w-full max-w-2xl mx-auto bg-card border border-border rounded-xl p-4 md:p-5 flex flex-col gap-4">
+    <motion.div
+      className="w-full max-w-2xl mx-auto bg-card border border-border rounded-xl p-4 md:p-5 flex flex-col gap-4"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs text-muted-foreground">
@@ -184,9 +206,11 @@ export function VocabQuizContent() {
           </p>
           <h2 className="font-semibold text-foreground text-base">Ordquiz</h2>
         </div>
-        <Button type="button" size="sm" variant="outline" asChild>
-          <Link href="/vocab">Til ordliste</Link>
-        </Button>
+        <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
+          <Button type="button" size="sm" variant="outline" asChild>
+            <Link href="/vocab">Til ordliste</Link>
+          </Button>
+        </motion.div>
       </div>
 
       {quizMode === "running" && (
@@ -195,154 +219,145 @@ export function VocabQuizContent() {
             <span>Fremdrift</span>
             <span>{quizProgressValue}%</span>
           </div>
-          <Progress value={quizProgressValue} className="h-2" />
+          <motion.div initial={{ scaleX: 0.95, opacity: 0.8 }} animate={{ scaleX: 1, opacity: 1 }}>
+            <Progress value={quizProgressValue} className="h-2" />
+          </motion.div>
         </div>
       )}
 
-      {quizMode === "loading" && (
-        <div className="space-y-3">
-          <Skeleton className="h-2 w-full rounded-full" />
-          <div className="rounded-xl border border-border bg-muted/20 p-5 md:p-7 space-y-4">
-            <Skeleton className="h-8 w-1/2 mx-auto" />
-            <Skeleton className="h-4 w-3/4 mx-auto" />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <Skeleton className="h-10 rounded-md sm:col-span-2" />
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Skeleton className="h-6 w-20 rounded-full" />
-            <Skeleton className="h-6 w-16 rounded-full" />
-            <Skeleton className="h-6 w-20 rounded-full" />
-            <Skeleton className="h-6 w-16 rounded-full" />
-          </div>
-        </div>
-      )}
+      <AnimatePresence mode="wait">
+        {quizMode === "loading" && (
+          <motion.div key="loading" variants={contentVariants} initial="initial" animate="animate" exit="exit" className="space-y-3">
+            <Skeleton className="h-2 w-full rounded-full" />
+            <div className="rounded-xl border border-border bg-muted/20 p-5 md:p-7 space-y-4">
+              <Skeleton className="h-8 w-1/2 mx-auto" />
+              <Skeleton className="h-4 w-3/4 mx-auto" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Skeleton className="h-10 rounded-md sm:col-span-2" />
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Skeleton className="h-6 w-20 rounded-full" />
+              <Skeleton className="h-6 w-16 rounded-full" />
+              <Skeleton className="h-6 w-20 rounded-full" />
+              <Skeleton className="h-6 w-16 rounded-full" />
+            </div>
+          </motion.div>
+        )}
 
-      {quizMode === "empty" && (
-        <div className="rounded-xl border border-border bg-muted/20 p-8 text-center">
-          <BookOpen className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground mb-4">
-            Ingen ord i ordforrådet ennå.
-          </p>
-          <Button type="button" variant="outline" asChild>
-            <Link href="/vocab">Gå til ordliste</Link>
-          </Button>
-        </div>
-      )}
+        {quizMode === "empty" && (
+          <motion.div
+            key="empty"
+            variants={contentVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="rounded-xl border border-border bg-muted/20 p-8 text-center"
+          >
+            <BookOpen className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground mb-4">Ingen ord i ordforrådet ennå.</p>
+            <Button type="button" variant="outline" asChild>
+              <Link href="/vocab">Gå til ordliste</Link>
+            </Button>
+          </motion.div>
+        )}
 
-      {quizMode === "running" && currentQuizCard && (
-        <>
-          <div className="rounded-xl border border-border bg-muted/20 p-5 md:p-7 text-center">
-            <p className="text-2xl md:text-3xl font-semibold text-foreground break-words">
-              {currentQuizCard.term}
-            </p>
+        {quizMode === "running" && currentQuizCard && (
+          <motion.div key={`running-${currentQuizCard.itemId}`} variants={contentVariants} initial="initial" animate="animate" exit="exit" className="space-y-4">
+            <motion.div
+              className="rounded-xl border border-border bg-muted/20 p-5 md:p-7 text-center"
+              initial={{ scale: 0.99 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 260, damping: 22 }}
+            >
+              <p className="text-2xl md:text-3xl font-semibold text-foreground break-words">{currentQuizCard.term}</p>
 
-            {isRevealed ? (
-              <div className="mt-4 space-y-2">
-                {currentQuizCard.explanation ? (
-                  <p className="text-sm text-muted-foreground">
-                    {currentQuizCard.explanation}
-                  </p>
+              <AnimatePresence mode="wait">
+                {isRevealed ? (
+                  <motion.div key="revealed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="mt-4 space-y-2">
+                    {currentQuizCard.explanation ? (
+                      <p className="text-sm text-muted-foreground">{currentQuizCard.explanation}</p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Ingen forklaring lagret.</p>
+                    )}
+                    {currentQuizCard.example_sentence && (
+                      <p className="text-sm italic text-muted-foreground">{currentQuizCard.example_sentence}</p>
+                    )}
+                  </motion.div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Ingen forklaring lagret.
-                  </p>
+                  <motion.p key="hidden" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="mt-4 text-sm text-muted-foreground">
+                    Prøv å huske betydningen, og vis så svaret.
+                  </motion.p>
                 )}
-                {currentQuizCard.example_sentence && (
-                  <p className="text-sm italic text-muted-foreground">
-                    {currentQuizCard.example_sentence}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="mt-4 text-sm text-muted-foreground">
-                Prøv å huske betydningen, og vis så svaret.
-              </p>
-            )}
-          </div>
+              </AnimatePresence>
+            </motion.div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {!isRevealed ? (
-              <Button
-                type="button"
-                className="sm:col-span-2"
-                onClick={() => setIsRevealed(true)}
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                Vis svar
-              </Button>
-            ) : (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-destructive/30 text-destructive hover:bg-destructive/10"
-                  onClick={() => void handleQuizAnswer(false)}
-                  disabled={isSubmittingQuizAnswer}
-                >
-                  <ThumbsDown className="h-4 w-4 mr-2" />
-                  Ikke sikker
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {!isRevealed ? (
+                <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }} className="sm:col-span-2">
+                  <Button type="button" className="w-full" onClick={() => setIsRevealed(true)}>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Vis svar
+                  </Button>
+                </motion.div>
+              ) : (
+                <>
+                  <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full border-destructive/30 text-destructive hover:bg-destructive/10"
+                      onClick={() => void handleQuizAnswer(false)}
+                      disabled={isSubmittingQuizAnswer}
+                    >
+                      <ThumbsDown className="h-4 w-4 mr-2" />
+                      Ikke sikker
+                    </Button>
+                  </motion.div>
+                  <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
+                    <Button
+                      type="button"
+                      className="w-full"
+                      onClick={() => void handleQuizAnswer(true)}
+                      disabled={isSubmittingQuizAnswer}
+                    >
+                      <ThumbsUp className="h-4 w-4 mr-2" />
+                      Jeg vet det
+                    </Button>
+                  </motion.div>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">Besvart: {quizStats.answered}</span>
+              <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">Vet: {quizStats.knew}</span>
+              <span className="text-xs px-2 py-1 rounded-full bg-destructive/10 text-destructive">Vet ikke: {quizStats.didntKnow}</span>
+              <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">Igjen: {quizQueue.length}</span>
+            </div>
+          </motion.div>
+        )}
+
+        {quizMode === "completed" && (
+          <motion.div key="completed" variants={contentVariants} initial="initial" animate="animate" exit="exit" className="space-y-3">
+            <div className="rounded-xl border border-border bg-muted/20 p-5 md:p-6">
+              <p className="text-sm text-muted-foreground">Du er ferdig med runden.</p>
+              <p className="text-lg font-semibold text-foreground mt-1">{quizStats.knew} visste, {quizStats.didntKnow} usikre</p>
+              <p className="text-xs text-muted-foreground mt-2">Totalt besvart: {quizStats.answered}</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
+                <Button type="button" className="w-full" onClick={() => void startQuiz()} disabled={isStartingQuiz}>
+                  {isStartingQuiz ? "Starter..." : "Start ny quiz"}
                 </Button>
-                <Button
-                  type="button"
-                  onClick={() => void handleQuizAnswer(true)}
-                  disabled={isSubmittingQuizAnswer}
-                >
-                  <ThumbsUp className="h-4 w-4 mr-2" />
-                  Jeg vet det
-                </Button>
-              </>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
-              Besvart: {quizStats.answered}
-            </span>
-            <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
-              Vet: {quizStats.knew}
-            </span>
-            <span className="text-xs px-2 py-1 rounded-full bg-destructive/10 text-destructive">
-              Vet ikke: {quizStats.didntKnow}
-            </span>
-            <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
-              Igjen: {quizQueue.length}
-            </span>
-          </div>
-        </>
-      )}
-
-      {quizMode === "completed" && (
-        <>
-          <div className="rounded-xl border border-border bg-muted/20 p-5 md:p-6">
-            <p className="text-sm text-muted-foreground">
-              Du er ferdig med runden.
-            </p>
-            <p className="text-lg font-semibold text-foreground mt-1">
-              {quizStats.knew} visste, {quizStats.didntKnow} usikre
-            </p>
-            <p className="text-xs text-muted-foreground mt-2">
-              Totalt besvart: {quizStats.answered}
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <Button
-              type="button"
-              onClick={() => void startQuiz()}
-              disabled={isStartingQuiz}
-            >
-              {isStartingQuiz ? "Starter..." : "Start ny quiz"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/vocab")}
-            >
-              Tilbake til ordliste
-            </Button>
-          </div>
-        </>
-      )}
-    </div>
+              </motion.div>
+              <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
+                <Button type="button" className="w-full" variant="outline" onClick={() => router.push("/vocab")}>Tilbake til ordliste</Button>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }
