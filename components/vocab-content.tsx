@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import useSWR, { mutate } from "swr";
 import { useSearchParams } from "next/navigation";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { normalizeVocabTerm } from "@/lib/vocab-normalization";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AnimatePresence, motion, type Variants } from "motion/react";
@@ -25,6 +26,11 @@ interface VocabItem {
   next_review_at: string;
   created_at: string;
 }
+
+type VocabAddResponse = {
+  action?: "created" | "updated";
+  item: VocabItem;
+};
 
 const FILTERS = [
   { value: "all", label: "Alle" },
@@ -57,21 +63,83 @@ export function VocabContent() {
 
   const [filter, setFilter] = useState(initialFilter);
   const [showAdd, setShowAdd] = useState(false);
+  const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
+  const [addForm, setAddForm] = useState({
+    term: "",
+    explanation: "",
+    exampleSentence: "",
+  });
 
   const { data, isLoading } = useSWR<{ items: VocabItem[] }>(
     `/api/vocab?filter=${filter}`,
     fetcher,
   );
+  const { data: allVocabData, isLoading: isCheckingSimilar } = useSWR<{
+    items: VocabItem[];
+  }>(showAdd ? "/api/vocab?filter=all" : null, fetcher);
+
   const items = data?.items || [];
+  const allVocabItems = allVocabData?.items;
+
+  const { exactMatch, similarMatches } = useMemo(() => {
+    const normalizedInput = normalizeVocabTerm(addForm.term);
+    if (!showAdd || !normalizedInput) {
+      return { exactMatch: null as VocabItem | null, similarMatches: [] as VocabItem[] };
+    }
+
+    const normalizedItems = (allVocabItems ?? []).map((item) => ({
+      item,
+      normalized: normalizeVocabTerm(item.term),
+    }));
+    const exact = normalizedItems.find(
+      ({ normalized }) => normalized === normalizedInput,
+    )?.item ?? null;
+
+    if (normalizedInput.length < 3) {
+      return { exactMatch: exact, similarMatches: [] as VocabItem[] };
+    }
+
+    const similar = normalizedItems
+      .filter(({ item, normalized }) => {
+        if (exact && item.id === exact.id) return false;
+        return (
+          normalized.startsWith(normalizedInput) ||
+          normalizedInput.startsWith(normalized) ||
+          normalized.includes(normalizedInput) ||
+          normalizedInput.includes(normalized)
+        );
+      })
+      .slice(0, 3)
+      .map(({ item }) => item);
+
+    return { exactMatch: exact, similarMatches: similar };
+  }, [addForm.term, allVocabItems, showAdd]);
+
+  function resetAddForm() {
+    setAddForm({ term: "", explanation: "", exampleSentence: "" });
+  }
+
+  function handleToggleAdd() {
+    setShowAdd((prev) => {
+      const next = !prev;
+      if (!next) {
+        resetAddForm();
+      }
+      return next;
+    });
+  }
 
   async function handleAdd(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const term = formData.get("term") as string;
-    const explanation = formData.get("explanation") as string;
-    const exampleSentence = formData.get("exampleSentence") as string;
+    if (isSubmittingAdd) return;
+
+    const term = addForm.term.trim();
+    const explanation = addForm.explanation.trim();
+    const exampleSentence = addForm.exampleSentence.trim();
+    if (!term) return;
 
     try {
+      setIsSubmittingAdd(true);
       const res = await fetch("/api/vocab", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -79,18 +147,35 @@ export function VocabContent() {
       });
 
       if (!res.ok) {
-        throw new Error("Failed to add vocab");
+        const payload = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(payload?.error || "Kunne ikke legge til ord");
       }
 
-      toast.success(`"${term}" lagt til`);
+      const payload = (await res.json()) as VocabAddResponse;
+      const action = payload.action || "created";
+      if (action === "updated") {
+        toast.success(`"${payload.item.term}" finnes allerede, oppdatert.`);
+      } else {
+        toast.success(`"${payload.item.term}" lagt til`);
+      }
+
       setShowAdd(false);
+      resetAddForm();
       await Promise.all([
         mutate(`/api/vocab?filter=${filter}`),
         mutate("/api/vocab?filter=all"),
+        mutate("/api/vocab?filter=new"),
+        mutate("/api/vocab?filter=due"),
+        mutate("/api/vocab?filter=mastered"),
       ]);
-      (e.target as HTMLFormElement).reset();
-    } catch {
-      toast.error("Kunne ikke legge til ord");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Kunne ikke legge til ord",
+      );
+    } finally {
+      setIsSubmittingAdd(false);
     }
   }
 
@@ -130,7 +215,7 @@ export function VocabContent() {
             </Link>
           </motion.div>
           <motion.button
-            onClick={() => setShowAdd((v) => !v)}
+            onClick={handleToggleAdd}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted text-muted-foreground hover:text-foreground transition-colors"
             whileHover={{ y: -1, scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -162,8 +247,59 @@ export function VocabContent() {
                 placeholder="f.eks. hyggelig"
                 required
                 className="text-sm"
+                value={addForm.term}
+                onChange={(e) =>
+                  setAddForm((prev) => ({ ...prev, term: e.target.value }))
+                }
               />
             </div>
+            {addForm.term.trim() && (
+              <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
+                {isCheckingSimilar ? (
+                  <p className="text-xs text-muted-foreground">
+                    Sjekker lignende ord...
+                  </p>
+                ) : exactMatch ? (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-foreground">
+                      Lignende ord finnes allerede:{" "}
+                      <span className="font-semibold">{exactMatch.term}</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Når du lagrer nå, oppdaterer vi eksisterende ord i stedet
+                      for å lage et nytt.
+                    </p>
+                  </div>
+                ) : similarMatches.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Lignende ord i ordlisten:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {similarMatches.map((match) => (
+                        <button
+                          key={match.id}
+                          type="button"
+                          onClick={() =>
+                            setAddForm((prev) => ({
+                              ...prev,
+                              term: match.term,
+                            }))
+                          }
+                          className="px-2 py-1 rounded-md text-xs bg-background border border-border hover:bg-muted transition-colors"
+                        >
+                          {match.term}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Ingen lignende ord funnet.
+                  </p>
+                )}
+              </div>
+            )}
             <div className="flex flex-col gap-2">
               <Label htmlFor="explanation" className="text-xs">
                 Forklaring
@@ -173,6 +309,13 @@ export function VocabContent() {
                 name="explanation"
                 placeholder="Betyr 'cozy' eller 'nice'"
                 className="text-sm"
+                value={addForm.explanation}
+                onChange={(e) =>
+                  setAddForm((prev) => ({
+                    ...prev,
+                    explanation: e.target.value,
+                  }))
+                }
               />
             </div>
             <div className="flex flex-col gap-2">
@@ -184,10 +327,26 @@ export function VocabContent() {
                 name="exampleSentence"
                 placeholder="Det var en hyggelig kveld."
                 className="text-sm"
+                value={addForm.exampleSentence}
+                onChange={(e) =>
+                  setAddForm((prev) => ({
+                    ...prev,
+                    exampleSentence: e.target.value,
+                  }))
+                }
               />
             </div>
-            <Button type="submit" size="sm" className="self-end">
-              Legg til
+            <Button
+              type="submit"
+              size="sm"
+              className="self-end"
+              disabled={isSubmittingAdd || addForm.term.trim().length === 0}
+            >
+              {isSubmittingAdd
+                ? "Lagrer..."
+                : exactMatch
+                  ? "Oppdater eksisterende"
+                  : "Legg til"}
             </Button>
           </motion.form>
         )}

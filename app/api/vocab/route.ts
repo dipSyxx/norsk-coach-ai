@@ -122,6 +122,8 @@ export async function POST(req: Request) {
       select: { term: true },
     });
 
+    const hasExistingMatch = Boolean(existingTerm);
+
     const item = await prisma.vocabItem.upsert({
       where: {
         userId_term: {
@@ -145,6 +147,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({
+      action: hasExistingMatch ? "updated" : "created",
       item: {
         id: item.id,
         term: item.term,
