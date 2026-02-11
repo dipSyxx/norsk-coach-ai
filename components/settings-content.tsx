@@ -29,7 +29,37 @@ const TOPICS = [
   { id: "familie", label: "Familie" },
   { id: "mat", label: "Mat" },
   { id: "bolig", label: "Bolig" },
+  { id: "okonomi", label: "Økonomi" },
+  { id: "transport", label: "Transport" },
+  { id: "fritid", label: "Fritid" },
+  { id: "teknologi", label: "Teknologi" },
+  { id: "samfunn", label: "Samfunn" },
+  { id: "kultur", label: "Kultur" },
+  { id: "natur", label: "Natur" },
 ];
+
+const LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1"] as const;
+const GOAL_OPTIONS = [
+  { value: "snakke", label: "Samtale" },
+  { value: "grammatikk", label: "Grammatikk" },
+  { value: "ordforrad", label: "Ordforråd" },
+  { value: "uttale", label: "Uttale" },
+  { value: "lytting", label: "Lytting" },
+  { value: "skriving", label: "Skriving" },
+] as const;
+const COACH_STYLE_OPTIONS = [
+  { value: "friendly", label: "Vennlig" },
+  { value: "balanced", label: "Balansert" },
+  { value: "strict", label: "Streng" },
+  { value: "socratic", label: "Sokratisk" },
+] as const;
+const EXPLANATION_LANGUAGE_OPTIONS = [
+  { value: "norwegian", label: "Norsk" },
+  { value: "ukrainian", label: "Ukrainsk" },
+  { value: "english", label: "Engelsk" },
+  { value: "polish", label: "Polsk" },
+  { value: "german", label: "Tysk" },
+] as const;
 
 interface SettingsData {
   name: string;
@@ -211,8 +241,8 @@ export function SettingsContent({
           {/* Level */}
           <div className="flex flex-col gap-2">
             <Label className="text-sm">Nivå</Label>
-            <div className="flex gap-2">
-              {["A2", "B1"].map((l) => (
+            <div className="flex gap-2 flex-wrap">
+              {LEVEL_OPTIONS.map((l) => (
                 <button
                   key={l}
                   type="button"
@@ -235,11 +265,7 @@ export function SettingsContent({
           <div className="flex flex-col gap-2">
             <Label className="text-sm">Fokus</Label>
             <div className="flex gap-2 flex-wrap">
-              {[
-                { value: "snakke", label: "Samtale" },
-                { value: "grammatikk", label: "Grammatikk" },
-                { value: "ordforrad", label: "Ordforråd" },
-              ].map((g) => (
+              {GOAL_OPTIONS.map((g) => (
                 <button
                   key={g.value}
                   type="button"
@@ -261,11 +287,8 @@ export function SettingsContent({
           {/* Coach Style */}
           <div className="flex flex-col gap-2">
             <Label className="text-sm">Veilederstil</Label>
-            <div className="flex gap-2">
-              {[
-                { value: "friendly", label: "Vennlig" },
-                { value: "strict", label: "Streng" },
-              ].map((s) => (
+            <div className="flex gap-2 flex-wrap">
+              {COACH_STYLE_OPTIONS.map((s) => (
                 <button
                   key={s.value}
                   type="button"
@@ -290,11 +313,7 @@ export function SettingsContent({
           <div className="flex flex-col gap-2">
             <Label className="text-sm">Forklaringsspråk</Label>
             <div className="flex gap-2 flex-wrap">
-              {[
-                { value: "norwegian", label: "Norsk" },
-                { value: "ukrainian", label: "Ukrainsk" },
-                { value: "english", label: "Engelsk" },
-              ].map((l) => (
+              {EXPLANATION_LANGUAGE_OPTIONS.map((l) => (
                 <button
                   key={l.value}
                   type="button"

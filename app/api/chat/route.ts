@@ -222,6 +222,8 @@ const EXPLANATION_LANG_INSTRUCTION: Record<string, string> = {
   ukrainian: "Give the explanation for each vocab item in Ukrainian.",
   english: "Give the explanation for each vocab item in English.",
   norwegian: "Give the explanation for each vocab item in simple Norwegian.",
+  polish: "Give the explanation for each vocab item in Polish.",
+  german: "Give the explanation for each vocab item in German.",
 };
 
 async function extractVocabAndMistakes(

@@ -1,12 +1,26 @@
 import { z } from "zod";
 
-export const LEVEL_VALUES = ["A2", "B1"] as const;
-export const GOAL_VALUES = ["snakke", "grammatikk", "ordforrad"] as const;
-export const COACH_STYLE_VALUES = ["friendly", "strict"] as const;
+export const LEVEL_VALUES = ["A1", "A2", "B1", "B2", "C1"] as const;
+export const GOAL_VALUES = [
+  "snakke",
+  "grammatikk",
+  "ordforrad",
+  "uttale",
+  "lytting",
+  "skriving",
+] as const;
+export const COACH_STYLE_VALUES = [
+  "friendly",
+  "balanced",
+  "strict",
+  "socratic",
+] as const;
 export const EXPLANATION_LANGUAGE_VALUES = [
   "norwegian",
   "ukrainian",
   "english",
+  "polish",
+  "german",
 ] as const;
 export const TOPIC_VALUES = [
   "jobb",
@@ -17,6 +31,13 @@ export const TOPIC_VALUES = [
   "familie",
   "mat",
   "bolig",
+  "okonomi",
+  "transport",
+  "fritid",
+  "teknologi",
+  "samfunn",
+  "kultur",
+  "natur",
 ] as const;
 export const CHAT_MODE_VALUES = [
   "free_chat",

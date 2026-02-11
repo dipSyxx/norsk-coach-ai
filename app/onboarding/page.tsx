@@ -15,7 +15,106 @@ const TOPICS = [
   { id: "familie", label: "Familie og venner" },
   { id: "mat", label: "Mat og matlaging" },
   { id: "bolig", label: "Bolig og hjem" },
+  { id: "okonomi", label: "Økonomi og bank" },
+  { id: "transport", label: "Transport" },
+  { id: "fritid", label: "Fritid og hobby" },
+  { id: "teknologi", label: "Teknologi" },
+  { id: "samfunn", label: "Samfunn" },
+  { id: "kultur", label: "Kultur" },
+  { id: "natur", label: "Natur og vær" },
 ];
+
+const LEVEL_OPTIONS = [
+  {
+    value: "A1",
+    label: "A1 - Nybegynner",
+    desc: "Kan forstå og bruke helt enkle uttrykk",
+  },
+  {
+    value: "A2",
+    label: "A2 - Grunnleggende",
+    desc: "Kan forstå og bruke enkle setninger i dagliglivet",
+  },
+  {
+    value: "B1",
+    label: "B1 - Mellomnivå",
+    desc: "Kan forstå hovedpunkter i klart standardspråk",
+  },
+  {
+    value: "B2",
+    label: "B2 - Selvstendig",
+    desc: "Kan delta aktivt i samtaler om mange emner",
+  },
+  {
+    value: "C1",
+    label: "C1 - Avansert",
+    desc: "Kan uttrykke deg flytende og presist i komplekse situasjoner",
+  },
+] as const;
+
+const GOAL_OPTIONS = [
+  {
+    value: "snakke",
+    label: "Samtale",
+    desc: "Trene på å snakke naturlig norsk",
+  },
+  {
+    value: "grammatikk",
+    label: "Grammatikk",
+    desc: "Fokusere på grammatikkregler og setningsbygning",
+  },
+  {
+    value: "ordforrad",
+    label: "Ordforråd",
+    desc: "Lære nye ord og uttrykk",
+  },
+  {
+    value: "uttale",
+    label: "Uttale",
+    desc: "Jobbe med uttale, trykk og flyt",
+  },
+  {
+    value: "lytting",
+    label: "Lytting",
+    desc: "Forstå muntlig norsk i naturlig tempo",
+  },
+  {
+    value: "skriving",
+    label: "Skriving",
+    desc: "Skrive tydeligere og mer korrekt norsk",
+  },
+] as const;
+
+const COACH_STYLE_OPTIONS = [
+  {
+    value: "friendly",
+    label: "Vennlig",
+    desc: "Oppmuntrende og tålmodig",
+  },
+  {
+    value: "balanced",
+    label: "Balansert",
+    desc: "Kombinerer støtte med tydelige korreksjoner",
+  },
+  {
+    value: "strict",
+    label: "Streng",
+    desc: "Direkte og utfordrende",
+  },
+  {
+    value: "socratic",
+    label: "Sokratisk",
+    desc: "Stiller spørsmål som får deg til å finne svaret selv",
+  },
+] as const;
+
+const EXPLANATION_LANGUAGE_OPTIONS = [
+  { value: "norwegian", label: "Norsk" },
+  { value: "ukrainian", label: "Ukrainsk" },
+  { value: "english", label: "Engelsk" },
+  { value: "polish", label: "Polsk" },
+  { value: "german", label: "Tysk" },
+] as const;
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -99,18 +198,7 @@ export default function OnboardingPage() {
         <div className="bg-card border border-border rounded-xl p-6 mb-6">
           {step === 0 && (
             <div className="flex flex-col gap-3">
-              {[
-                {
-                  value: "A2",
-                  label: "A2 - Grunnleggende",
-                  desc: "Kan forstå og bruke enkle setninger",
-                },
-                {
-                  value: "B1",
-                  label: "B1 - Mellomnivå",
-                  desc: "Kan forstå hovedpunkter i klart standardspråk",
-                },
-              ].map((opt) => (
+              {LEVEL_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   onClick={() => setData((p) => ({ ...p, level: opt.value }))}
@@ -131,23 +219,7 @@ export default function OnboardingPage() {
 
           {step === 1 && (
             <div className="flex flex-col gap-3">
-              {[
-                {
-                  value: "snakke",
-                  label: "Samtale",
-                  desc: "Trene på å snakke naturlig norsk",
-                },
-                {
-                  value: "grammatikk",
-                  label: "Grammatikk",
-                  desc: "Fokusere på grammatikkregler og setningsbygning",
-                },
-                {
-                  value: "ordforrad",
-                  label: "Ordforråd",
-                  desc: "Lære nye ord og uttrykk",
-                },
-              ].map((opt) => (
+              {GOAL_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   onClick={() => setData((p) => ({ ...p, goal: opt.value }))}
@@ -201,18 +273,7 @@ export default function OnboardingPage() {
                 <span className="text-sm font-medium text-foreground">
                   Veilederstil
                 </span>
-                {[
-                  {
-                    value: "friendly",
-                    label: "Vennlig",
-                    desc: "Oppmuntrende og tålmodig",
-                  },
-                  {
-                    value: "strict",
-                    label: "Streng",
-                    desc: "Direkte og utfordrende",
-                  },
-                ].map((opt) => (
+                {COACH_STYLE_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() =>
@@ -236,11 +297,7 @@ export default function OnboardingPage() {
                 <span className="text-sm font-medium text-foreground">
                   Forklaringsspråk
                 </span>
-                {[
-                  { value: "norwegian", label: "Norsk" },
-                  { value: "ukrainian", label: "Ukrainsk" },
-                  { value: "english", label: "Engelsk" },
-                ].map((opt) => (
+                {EXPLANATION_LANGUAGE_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() =>
@@ -275,10 +332,7 @@ export default function OnboardingPage() {
           </Button>
 
           {step < steps.length - 1 ? (
-            <Button
-              onClick={() => setStep((s) => s + 1)}
-              className="gap-1"
-            >
+            <Button onClick={() => setStep((s) => s + 1)} className="gap-1">
               Neste
               <ArrowRight className="h-4 w-4" />
             </Button>
