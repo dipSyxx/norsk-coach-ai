@@ -7,6 +7,7 @@ import { mutate } from "swr";
 import { BookOpen, Eye, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
 type QuizMode = "loading" | "running" | "completed" | "empty";
@@ -199,8 +200,21 @@ export function VocabQuizContent() {
       )}
 
       {quizMode === "loading" && (
-        <div className="rounded-xl border border-border bg-muted/20 p-8 text-center">
-          <p className="text-sm text-muted-foreground">Starter quiz...</p>
+        <div className="space-y-3">
+          <Skeleton className="h-2 w-full rounded-full" />
+          <div className="rounded-xl border border-border bg-muted/20 p-5 md:p-7 space-y-4">
+            <Skeleton className="h-8 w-1/2 mx-auto" />
+            <Skeleton className="h-4 w-3/4 mx-auto" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Skeleton className="h-10 rounded-md sm:col-span-2" />
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Skeleton className="h-6 w-20 rounded-full" />
+            <Skeleton className="h-6 w-16 rounded-full" />
+            <Skeleton className="h-6 w-20 rounded-full" />
+            <Skeleton className="h-6 w-16 rounded-full" />
+          </div>
         </div>
       )}
 

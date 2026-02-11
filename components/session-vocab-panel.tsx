@@ -6,6 +6,7 @@ import { BookOpen, Plus } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -87,7 +88,18 @@ export function SessionVocabPanel({
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-2">
           {isLoading ? (
-            <p className="text-xs text-muted-foreground">Laster...</p>
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="rounded-lg border border-border bg-muted/30 p-2"
+                >
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-3 w-full mt-2" />
+                  <Skeleton className="h-3 w-5/6 mt-1" />
+                </div>
+              ))}
+            </div>
           ) : items.length === 0 ? (
             <p className="text-xs text-muted-foreground">
               Nye ord fra chatten vises her.

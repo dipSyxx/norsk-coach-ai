@@ -8,6 +8,7 @@ import { BookOpen, Plus, RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -157,7 +158,7 @@ export function VocabContent() {
       {isLoading ? (
         <div className="flex flex-col gap-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />
+            <Skeleton key={i} className="h-16 rounded-lg" />
           ))}
         </div>
       ) : items.length === 0 ? (
