@@ -76,7 +76,9 @@ export function SessionSidebar({
                       : "text-muted-foreground hover:text-foreground hover:bg-muted",
                   )}
                   onClick={() => onSelectSession(session.id)}
-                  onKeyDown={(e) => e.key === "Enter" && onSelectSession(session.id)}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && onSelectSession(session.id)
+                  }
                   role="button"
                   tabIndex={0}
                   initial={{ opacity: 0, y: 6 }}
@@ -86,7 +88,9 @@ export function SessionSidebar({
                   transition={{ type: "spring", stiffness: 330, damping: 24 }}
                 >
                   <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
-                  <span className="flex-1 truncate text-xs">{session.title}</span>
+                  <span className="flex-1 truncate text-xs">
+                    {session.title}
+                  </span>
                   <motion.button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -146,7 +150,7 @@ export function SessionSidebar({
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
-            className="md:hidden fixed inset-0 z-40 flex"
+            className="md:hidden fixed inset-0 z-50 flex"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

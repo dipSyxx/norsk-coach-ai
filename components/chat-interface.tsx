@@ -88,7 +88,7 @@ export function ChatInterface() {
 
   return (
     <motion.div
-      className="flex h-[calc(100vh-53px)] md:h-screen min-h-0 overflow-hidden"
+      className="flex h-[calc(100dvh-5.5rem)] md:h-screen min-h-0 overflow-hidden"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}

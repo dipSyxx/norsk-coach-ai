@@ -213,6 +213,11 @@ export function SettingsContent({
     }
   }
 
+  async function handleLogout() {
+    await signOut({ callbackUrl: "/" });
+    toast.success("Du er logget ut");
+  }
+
   function toggleTopic(id: string) {
     setData((prev) => ({
       ...prev,
@@ -522,6 +527,15 @@ export function SettingsContent({
       <motion.div variants={sectionVariants} className="flex items-center gap-3 flex-wrap">
         <Button onClick={handleSave} disabled={saving || !isDirty}>
           {saving ? "Lagrer..." : "Lagre innstillinger"}
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleLogout}
+          className="md:hidden"
+        >
+          Logg ut
         </Button>
 
         <AnimatePresence>

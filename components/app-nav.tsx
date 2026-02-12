@@ -9,25 +9,36 @@ import {
   BookOpen,
   Settings,
   LogOut,
-  Menu,
-  X,
 } from "lucide-react";
-import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/vocab", label: "Ordforråd", icon: BookOpen },
-  { href: "/settings", label: "Innstillinger", icon: Settings },
+  {
+    href: "/dashboard",
+    label: "Dashboard",
+    mobileLabel: "Hjem",
+    icon: LayoutDashboard,
+  },
+  { href: "/chat", label: "Chat", mobileLabel: "Chat", icon: MessageSquare },
+  {
+    href: "/vocab",
+    label: "Ordforråd",
+    mobileLabel: "Ord",
+    icon: BookOpen,
+  },
+  {
+    href: "/settings",
+    label: "Innstillinger",
+    mobileLabel: "Innst.",
+    icon: Settings,
+  },
 ];
 
 export function AppNav() {
   const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   async function handleLogout() {
     await signOut({ callbackUrl: "/" });
@@ -36,78 +47,31 @@ export function AppNav() {
 
   return (
     <>
-      <header className="flex md:hidden items-center justify-between px-4 py-3 border-b border-border bg-card">
-        <BrandLogo
-          href="/dashboard"
-          imageClassName="h-12 w-12"
-          textClassName="text-lg"
-        />
-        <motion.button
-          onClick={() => setMobileOpen((open) => !open)}
-          className="p-2 text-muted-foreground hover:text-foreground"
-          aria-label={mobileOpen ? "Lukk meny" : "Åpne meny"}
-          whileTap={{ scale: 0.94 }}
-          whileHover={{ scale: 1.03 }}
-        >
-          {mobileOpen ? (
-            <X className="h-5 w-5" />
-          ) : (
-            <Menu className="h-5 w-5" />
-          )}
-        </motion.button>
-      </header>
-
-      <AnimatePresence>
-        {mobileOpen && (
-          <motion.div
-            className="md:hidden fixed inset-0 top-[53px] z-50 bg-background/95 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <motion.nav
-              className="flex flex-col p-4 gap-1"
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 8, opacity: 0 }}
-              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            >
-              {NAV_ITEMS.map((item) => (
-                <motion.div
-                  key={item.href}
-                  whileHover={{ x: 2 }}
-                  transition={{ type: "spring", stiffness: 340, damping: 22 }}
+      <nav className="md:hidden fixed inset-x-0 bottom-0 z-50 border-t border-border/80 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85 pb-[env(safe-area-inset-bottom)]">
+        <div className="grid grid-cols-4 gap-1 px-2 pt-2 pb-2">
+          {NAV_ITEMS.map((item) => {
+            const active = pathname.startsWith(item.href);
+            return (
+              <motion.div key={item.href} whileTap={{ scale: 0.97 }}>
+                <Link
+                  href={item.href}
+                  aria-label={item.label}
+                  className={cn(
+                    "flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-medium transition-colors",
+                    active
+                      ? "bg-primary/12 text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
+                  )}
                 >
-                  <Link
-                    href={item.href}
-                    onClick={() => setMobileOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
-                      pathname.startsWith(item.href)
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted",
-                    )}
-                  >
-                    <item.icon className="h-5 w-5" />
-                    {item.label}
-                  </Link>
-                </motion.div>
-              ))}
-              <motion.button
-                onClick={handleLogout}
-                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted mt-4 text-left"
-                whileHover={{ x: 2 }}
-                whileTap={{ scale: 0.98 }}
-                transition={{ type: "spring", stiffness: 340, damping: 22 }}
-              >
-                <LogOut className="h-5 w-5" />
-                Logg ut
-              </motion.button>
-            </motion.nav>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                  <item.icon className="h-4 w-4" />
+                  <span className="leading-none">{item.mobileLabel}</span>
+                </Link>
+              </motion.div>
+            );
+          })}
+
+        </div>
+      </nav>
 
       <aside className="hidden md:flex flex-col w-60 border-r border-border bg-card h-screen sticky top-0">
         <div className="px-5 py-5">
@@ -131,7 +95,7 @@ export function AppNav() {
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                   pathname.startsWith(item.href)
                     ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 )}
               >
                 <item.icon className="h-4 w-4" />

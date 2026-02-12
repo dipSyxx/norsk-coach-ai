@@ -219,6 +219,14 @@ export function ChatView({
           </p>
           <div className="flex flex-col gap-2">
             <button
+              onClick={onToggleSidebar}
+              className="md:hidden inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-border bg-card text-foreground hover:bg-muted transition-colors"
+              aria-label="Velg samtale"
+            >
+              <PanelLeft className="h-4 w-4" />
+              Velg samtale
+            </button>
+            <button
               onClick={() => onNewSession("free_chat")}
               className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-lg font-medium hover:opacity-90 transition-opacity"
             >
