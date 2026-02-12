@@ -149,7 +149,7 @@ export function DashboardContent() {
 
       <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard
-          label="Streak nÃ¥"
+          label="Streak nå"
           value={learning.currentStreak}
           icon={<Target className="h-4 w-4" />}
         />
@@ -345,10 +345,10 @@ function RatioCard({
     >
       <div className="flex items-center gap-2 mb-2">
         <TrendingUp className="h-4 w-4 text-muted-foreground" />
-        <span className="text-xs text-muted-foreground">LÃ¦ring (7d)</span>
+        <span className="text-xs text-muted-foreground">Læring (7d)</span>
       </div>
       <div className="text-sm text-foreground">
-        Quiz fullfÃ¸rt:{" "}
+        Quiz fullført:{" "}
         <span className="font-semibold">
           {formatPercent(completionRate7d)}
         </span>
@@ -391,3 +391,4 @@ function formatDate(dateStr: string): string {
   if (days < 7) return `${days}d siden`;
   return date.toLocaleDateString("nb-NO", { day: "numeric", month: "short" });
 }
+
