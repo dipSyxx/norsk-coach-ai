@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { prepareVocabTerm } from "@/lib/vocab-normalization";
+import { computeNextReviewAtFromStrength } from "@/lib/srs";
+import { mergeVocabKinds } from "@/lib/vocab-taxonomy";
+import {
+  nullIfBlank,
+  parseBodyWithSchema,
+  vocabCreateSchema,
+} from "@/lib/validation";
+
+const LEXICAL_KINDS = ["vocab", "phrase"] as const;
 
 export async function GET(req: Request) {
   try {
@@ -11,8 +21,15 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const filter = url.searchParams.get("filter") || "all";
+    const kindParam = url.searchParams.get("kind");
+    const kindFilter = kindParam === "grammar" ? "grammar" : "lexical";
 
-    const baseWhere = { userId: user.id };
+    const baseWhere = {
+      userId: user.id,
+      ...(kindFilter === "grammar"
+        ? { kind: "grammar" as const }
+        : { kind: { in: [...LEXICAL_KINDS] } }),
+    };
     let items;
 
     if (filter === "due") {
@@ -46,6 +63,8 @@ export async function GET(req: Request) {
       last_seen_at: i.lastSeenAt,
       next_review_at: i.nextReviewAt,
       created_at: i.createdAt,
+      kind: i.kind,
+      source: i.source,
     }));
 
     return NextResponse.json({ items: mapped });
@@ -65,38 +84,86 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { term, explanation, exampleSentence, sessionId } = await req.json();
+    const parsed = await parseBodyWithSchema(req, vocabCreateSchema);
+    if (!parsed.success) {
+      return NextResponse.json(parsed.error, { status: 400 });
+    }
 
-    if (!term) {
+    const { term, explanation, exampleSentence, sessionId } = parsed.data;
+    const preparedTerm = prepareVocabTerm(term);
+
+    if (!preparedTerm) {
       return NextResponse.json(
-        { error: "Term is required" },
+        { error: "Term must contain letters or numbers" },
         { status: 400 }
       );
     }
 
-    const trimmedTerm = String(term).trim();
-    const nextReviewAt = new Date(Date.now() + 12 * 60 * 60 * 1000); // 0.5 days
+    if (sessionId) {
+      const session = await prisma.chatSession.findFirst({
+        where: { id: sessionId, userId: user.id },
+        select: { id: true },
+      });
+      if (!session) {
+        return NextResponse.json(
+          { error: "Session not found" },
+          { status: 404 }
+        );
+      }
+    }
+
+    const nextReviewAt = computeNextReviewAtFromStrength(0);
+
+    const existingTerm = await prisma.vocabItem.findFirst({
+      where: {
+        userId: user.id,
+        OR: [
+          {
+            term: {
+              equals: preparedTerm.normalized,
+              mode: "insensitive",
+            },
+          },
+          {
+            term: {
+              equals: preparedTerm.rawTrimmed,
+              mode: "insensitive",
+            },
+          },
+        ],
+      },
+      select: { term: true, kind: true },
+    });
+
+    const hasExistingMatch = Boolean(existingTerm);
 
     const item = await prisma.vocabItem.upsert({
       where: {
-        userId_term: { userId: user.id, term: trimmedTerm },
+        userId_term: {
+          userId: user.id,
+          term: existingTerm?.term ?? preparedTerm.term,
+        },
       },
       create: {
         userId: user.id,
         sessionId: sessionId ?? null,
-        term: trimmedTerm,
-        explanation: explanation ?? null,
-        exampleSentence: exampleSentence ?? null,
+        term: preparedTerm.term,
+        kind: "vocab",
+        source: "assistant_reply",
+        explanation: nullIfBlank(explanation),
+        exampleSentence: nullIfBlank(exampleSentence),
         nextReviewAt,
       },
       update: {
-        explanation: explanation ?? null,
-        exampleSentence: exampleSentence ?? null,
+        kind: mergeVocabKinds(existingTerm?.kind, "vocab"),
+        explanation: nullIfBlank(explanation),
+        exampleSentence: nullIfBlank(exampleSentence),
         ...(sessionId != null && { sessionId }),
       },
     });
 
     return NextResponse.json({
+      action: hasExistingMatch ? "updated" : "created",
       item: {
         id: item.id,
         term: item.term,
@@ -104,6 +171,8 @@ export async function POST(req: Request) {
         example_sentence: item.exampleSentence,
         strength: item.strength,
         created_at: item.createdAt,
+        kind: item.kind,
+        source: item.source,
       },
     });
   } catch (error) {

@@ -6,16 +6,26 @@ import { BookOpen, Plus } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { AnimatePresence, motion } from "motion/react";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 interface VocabItem {
   id: string;
   term: string;
+  kind?: "vocab" | "phrase" | "grammar";
+  source?: "assistant_reply" | "correction";
   explanation: string | null;
   example_sentence: string | null;
   created_at: string;
+}
+
+interface SessionVocabResponse {
+  items?: VocabItem[];
+  lexical_items?: VocabItem[];
+  grammar_items?: VocabItem[];
 }
 
 export function SessionVocabPanel({
@@ -29,7 +39,7 @@ export function SessionVocabPanel({
   const vocabKey = sessionId
     ? `/api/sessions/${sessionId}/vocab?t=${refreshKey ?? 0}`
     : null;
-  const { data, isLoading } = useSWR<{ items: VocabItem[] }>(
+  const { data, isLoading } = useSWR<SessionVocabResponse>(
     vocabKey,
     fetcher,
     { refreshInterval: 20000 }
@@ -40,7 +50,8 @@ export function SessionVocabPanel({
   const [addExampleSentence, setAddExampleSentence] = useState("");
   const [adding, setAdding] = useState(false);
 
-  const items = data?.items ?? [];
+  const lexicalItems = data?.lexical_items ?? data?.items ?? [];
+  const grammarItems = data?.grammar_items ?? [];
 
   async function handleAdd() {
     const term = addTerm.trim();
@@ -77,46 +88,27 @@ export function SessionVocabPanel({
   if (!sessionId) return null;
 
   return (
-    <div className="hidden lg:flex flex-col w-64 border-l border-border bg-card flex-shrink-0">
+    <motion.div
+      className="hidden lg:flex flex-col w-64 border-l border-border bg-card flex-shrink-0 min-h-0 overflow-hidden"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+    >
       <div className="px-4 py-3 border-b border-border">
         <h2 className="font-semibold text-foreground text-sm flex items-center gap-2">
           <BookOpen className="h-4 w-4 text-primary" />
           Nye ord fra samtalen
         </h2>
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-3 space-y-2">
-          {isLoading ? (
-            <p className="text-xs text-muted-foreground">Laster...</p>
-          ) : items.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Nye ord fra chatten vises her.
-            </p>
-          ) : (
-            items.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-lg border border-border bg-muted/30 p-2 text-xs"
-              >
-                <div className="font-medium text-foreground">{item.term}</div>
-                {item.explanation && (
-                  <p className="text-muted-foreground mt-0.5">
-                    {item.explanation}
-                  </p>
-                )}
-                {item.example_sentence && (
-                  <p className="text-muted-foreground mt-1 italic">
-                    {item.example_sentence}
-                  </p>
-                )}
-              </div>
-            ))
-          )}
-
-          <div className="pt-2 border-t border-border space-y-2">
-            <p className="text-xs text-muted-foreground font-medium">
-              Legg til ord
-            </p>
+          <motion.div
+            className="pb-2 border-b border-border space-y-2"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.08 }}
+          >
+            <p className="text-xs text-muted-foreground font-medium">Legg til ord</p>
             <Input
               placeholder="Ord eller uttrykk"
               value={addTerm}
@@ -138,19 +130,97 @@ export function SessionVocabPanel({
               className="h-8 text-xs"
               onKeyDown={(e) => e.key === "Enter" && handleAdd()}
             />
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full h-8 gap-1 text-xs"
-              onClick={handleAdd}
-              disabled={adding || !addTerm.trim()}
-            >
-              <Plus className="h-3 w-3" />
-              {adding ? "Legger til..." : "Legg til"}
-            </Button>
+            <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full h-8 gap-1 text-xs"
+                onClick={handleAdd}
+                disabled={adding || !addTerm.trim()}
+              >
+                <Plus className="h-3 w-3" />
+                {adding ? "Legger til..." : "Legg til"}
+              </Button>
+            </motion.div>
+          </motion.div>
+
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="rounded-lg border border-border bg-muted/30 p-2">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-3 w-full mt-2" />
+                  <Skeleton className="h-3 w-5/6 mt-1" />
+                </div>
+              ))}
+            </div>
+          ) : lexicalItems.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nye ord fra chatten vises her.</p>
+          ) : (
+            <AnimatePresence initial={false}>
+              {lexicalItems.map((item) => (
+                <motion.div
+                  key={item.id}
+                  className="rounded-lg border border-border bg-muted/30 p-2 text-xs"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  whileHover={{ y: -1, scale: 1.004 }}
+                  transition={{ type: "spring", stiffness: 320, damping: 24 }}
+                >
+                  <div className="font-medium text-foreground">{item.term}</div>
+                  {item.explanation && (
+                    <p className="text-muted-foreground mt-0.5">{item.explanation}</p>
+                  )}
+                  {item.example_sentence && (
+                    <p className="text-muted-foreground mt-1 italic">{item.example_sentence}</p>
+                  )}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          )}
+
+          <div className="pt-2 border-t border-border space-y-2">
+            <p className="text-xs text-muted-foreground font-medium">Grammatikkpunkter</p>
+            {isLoading ? (
+              <div className="space-y-2">
+                {[1, 2].map((i) => (
+                  <div key={`grammar-skeleton-${i}`} className="rounded-lg border border-border bg-muted/30 p-2">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-3 w-full mt-2" />
+                  </div>
+                ))}
+              </div>
+            ) : grammarItems.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Ingen grammatikkpunkter i denne samtalen ennå.
+              </p>
+            ) : (
+              <AnimatePresence initial={false}>
+                {grammarItems.map((item) => (
+                  <motion.div
+                    key={`grammar-${item.id}`}
+                    className="rounded-lg border border-border bg-muted/30 p-2 text-xs"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    whileHover={{ y: -1, scale: 1.004 }}
+                    transition={{ type: "spring", stiffness: 320, damping: 24 }}
+                  >
+                    <div className="font-medium text-foreground">{item.term}</div>
+                    {item.explanation && (
+                      <p className="text-muted-foreground mt-0.5">{item.explanation}</p>
+                    )}
+                    {item.example_sentence && (
+                      <p className="text-muted-foreground mt-1 italic">{item.example_sentence}</p>
+                    )}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            )}
           </div>
         </div>
       </ScrollArea>
-    </div>
+    </motion.div>
   );
 }

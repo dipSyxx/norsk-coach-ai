@@ -99,6 +99,20 @@ export async function GET(req: Request) {
       },
     });
 
+    const messagesBySession = new Map<
+      string,
+      Array<{ role: string; content: string; created_at: Date }>
+    >();
+    for (const message of allMessages) {
+      const list = messagesBySession.get(message.sessionId) ?? [];
+      list.push({
+        role: message.role,
+        content: decrypt(message.content, message.keyVersion),
+        created_at: message.createdAt,
+      });
+      messagesBySession.set(message.sessionId, list);
+    }
+
     const data = {
       user: {
         email: user.email,
@@ -111,13 +125,7 @@ export async function GET(req: Request) {
         mode: s.mode,
         topic: s.topic,
         created_at: s.createdAt,
-        messages: allMessages
-          .filter((m) => m.sessionId === s.id)
-          .map((m) => ({
-            role: m.role,
-            content: decrypt(m.content, m.keyVersion),
-            created_at: m.createdAt,
-          })),
+        messages: messagesBySession.get(s.id) ?? [],
       })),
       vocabulary: vocab.map((v) => ({
         term: v.term,

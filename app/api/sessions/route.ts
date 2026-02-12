@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  nullIfBlank,
+  parseBodyWithSchema,
+  sessionCreateSchema,
+} from "@/lib/validation";
 
 export async function GET() {
   try {
@@ -44,14 +49,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { mode, topic, title } = await req.json();
+    const parsed = await parseBodyWithSchema(req, sessionCreateSchema);
+    if (!parsed.success) {
+      return NextResponse.json(parsed.error, { status: 400 });
+    }
+
+    const { mode, topic, title } = parsed.data;
 
     const session = await prisma.chatSession.create({
       data: {
         userId: user.id,
-        mode: mode || "free_chat",
-        topic: topic || null,
-        title: title || "Ny samtale",
+        mode,
+        topic: nullIfBlank(topic),
+        title: nullIfBlank(title) ?? "Ny samtale",
       },
     });
 

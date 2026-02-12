@@ -8,7 +8,9 @@ import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BrandLogo } from "@/components/brand-logo";
 import { toast } from "sonner";
+import { motion } from "motion/react";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -62,19 +64,27 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
+    <motion.main
+      className="min-h-screen flex items-center justify-center px-4"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <motion.div
+        className="w-full max-w-sm"
+        initial={{ scale: 0.99 }}
+        animate={{ scale: 1 }}
+        transition={{ duration: 0.24 }}
+      >
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-6">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">
-                N
-              </span>
-            </div>
-            <span className="font-display text-xl font-bold text-foreground">
-              NorskCoach
-            </span>
-          </Link>
+          <div className="mb-6">
+            <BrandLogo
+              href="/"
+              imageClassName="h-12 w-12"
+              textClassName="text-xl"
+              priority
+            />
+          </div>
           <h1 className="text-2xl font-bold text-foreground mb-1">
             Opprett konto
           </h1>
@@ -120,9 +130,11 @@ export default function SignupPage() {
             />
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full mt-2">
-            {loading ? "Oppretter konto..." : "Opprett konto"}
-          </Button>
+          <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
+            <Button type="submit" disabled={loading} className="w-full mt-2">
+              {loading ? "Oppretter konto..." : "Opprett konto"}
+            </Button>
+          </motion.div>
         </form>
 
         <p className="text-center text-sm text-muted-foreground mt-6">
@@ -134,7 +146,7 @@ export default function SignupPage() {
             Logg inn
           </Link>
         </p>
-      </div>
-    </main>
+      </motion.div>
+    </motion.main>
   );
 }

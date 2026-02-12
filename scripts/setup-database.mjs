@@ -1,103 +1,53 @@
-import { neon } from '@neondatabase/serverless';
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const sql = neon(process.env.DATABASE_URL);
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const root = join(__dirname, "..");
 
-async function setup() {
-  // Users table
-  await sql`
-    CREATE TABLE IF NOT EXISTS users (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      email TEXT UNIQUE NOT NULL,
-      name TEXT,
-      password_hash TEXT NOT NULL,
-      level TEXT DEFAULT 'A2' CHECK (level IN ('A2', 'B1')),
-      coach_style TEXT DEFAULT 'friendly' CHECK (coach_style IN ('friendly', 'strict')),
-      explanation_language TEXT DEFAULT 'norwegian' CHECK (explanation_language IN ('norwegian', 'ukrainian', 'english')),
-      topics TEXT[] DEFAULT '{}',
-      goal TEXT DEFAULT 'snakke' CHECK (goal IN ('snakke', 'grammatikk', 'ordforrad')),
-      onboarding_complete BOOLEAN DEFAULT false,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `;
-
-  // Chat sessions
-  await sql`
-    CREATE TABLE IF NOT EXISTS chat_sessions (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      title TEXT DEFAULT 'Ny samtale',
-      mode TEXT DEFAULT 'free_chat' CHECK (mode IN ('free_chat', 'rollespill', 'rett_teksten', 'ovelse', 'grammatikk')),
-      topic TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `;
-
-  await sql`CREATE INDEX IF NOT EXISTS idx_chat_sessions_user ON chat_sessions(user_id, updated_at DESC)`;
-
-  // Messages
-  await sql`
-    CREATE TABLE IF NOT EXISTS messages (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      session_id UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
-      role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
-      content TEXT NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `;
-
-  await sql`CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, created_at ASC)`;
-
-  // Vocabulary items
-  await sql`
-    CREATE TABLE IF NOT EXISTS vocab_items (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      session_id UUID REFERENCES chat_sessions(id) ON DELETE SET NULL,
-      term TEXT NOT NULL,
-      explanation TEXT,
-      example_sentence TEXT,
-      strength INTEGER DEFAULT 0 CHECK (strength >= 0 AND strength <= 5),
-      last_seen_at TIMESTAMPTZ DEFAULT NOW(),
-      next_review_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '1 day',
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `;
-
-  await sql`CREATE INDEX IF NOT EXISTS idx_vocab_user ON vocab_items(user_id, next_review_at ASC)`;
-
-  // Mistake patterns
-  await sql`
-    CREATE TABLE IF NOT EXISTS mistake_patterns (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      session_id UUID REFERENCES chat_sessions(id) ON DELETE SET NULL,
-      mistake_type TEXT NOT NULL,
-      example TEXT,
-      correction TEXT,
-      count INTEGER DEFAULT 1,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `;
-
-  await sql`CREATE INDEX IF NOT EXISTS idx_mistakes_user ON mistake_patterns(user_id)`;
-
-  // User sessions (auth)
-  await sql`
-    CREATE TABLE IF NOT EXISTS user_sessions (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      token TEXT UNIQUE NOT NULL,
-      expires_at TIMESTAMPTZ NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `;
-
-  await sql`CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token)`;
-
-  console.log('Database setup complete!');
+function loadEnvFile() {
+  const path = join(root, ".env");
+  if (!existsSync(path)) return;
+  const content = readFileSync(path, "utf8");
+  for (const line of content.split("\n")) {
+    const match = line.match(/^\s*([^#=]+)=(.*)$/);
+    if (!match) continue;
+    const key = match[1].trim();
+    const value = match[2].trim().replace(/^["']|["']$/g, "");
+    if (!process.env[key]) {
+      process.env[key] = value;
+    }
+  }
 }
 
-setup().catch(console.error);
+function runPnpm(args) {
+  const pnpmCmd = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+  const result = spawnSync(pnpmCmd, args, {
+    cwd: root,
+    stdio: "inherit",
+    env: process.env,
+  });
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
+
+function main() {
+  loadEnvFile();
+
+  if (!process.env.DATABASE_URL) {
+    console.error("DATABASE_URL is not set. Configure it in .env first.");
+    process.exit(1);
+  }
+
+  console.log("Running Prisma migrations...");
+  runPnpm(["prisma", "migrate", "deploy"]);
+
+  console.log("Generating Prisma Client...");
+  runPnpm(["prisma", "generate"]);
+
+  console.log("Database setup complete.");
+}
+
+main();

@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureAnalyticsMaintenanceRun } from "@/lib/analytics/maintenance";
+import { getDashboardLearningMetrics } from "@/lib/analytics/service";
 
 export async function GET() {
   try {
+    try {
+      await ensureAnalyticsMaintenanceRun();
+    } catch (error) {
+      console.error("Dashboard maintenance failed (non-critical):", error);
+    }
+
     const user = await getSession();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -22,6 +30,7 @@ export async function GET() {
       topMistakes,
       newWordsToday,
       mistakesToday,
+      learningMetrics,
     ] = await Promise.all([
       prisma.chatSession.count({ where: { userId: user.id } }),
       prisma.chatSession.findMany({
@@ -66,12 +75,18 @@ export async function GET() {
           createdAt: { gte: startOfToday },
         },
       }),
+      getDashboardLearningMetrics(user.id, user.time_zone, prisma),
     ]);
 
     const dagensMal =
       dueWords > 0
         ? { action: "repeter" as const, count: dueWords }
         : { action: "start_chat" as const };
+
+    const knewRatio7d =
+      learningMetrics.unknownRatio7d == null
+        ? null
+        : Math.max(0, Math.min(1, 1 - learningMetrics.unknownRatio7d));
 
     return NextResponse.json({
       stats: {
@@ -82,6 +97,10 @@ export async function GET() {
         dueWords,
       },
       iDag: { newWordsToday, mistakesToday },
+      learning: {
+        ...learningMetrics,
+        knewRatio7d,
+      },
       dagensMal,
       recentSessions: recentSessions.map((s) => ({
         id: s.id,

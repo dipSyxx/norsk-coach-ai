@@ -1,8 +1,15 @@
-import React from "react";
+﻿import React from "react";
 import type { Metadata, Viewport } from "next";
 import { DM_Sans } from "next/font/google";
 import { Toaster } from "sonner";
 import { SessionProvider } from "next-auth/react";
+import {
+  OG_IMAGE_PATH,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_URL,
+  toAbsoluteUrl,
+} from "@/lib/site";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -12,13 +19,87 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "NorskCoach AI - Din personlige norsklærer",
-  description:
-    "Practice Norwegian with an AI tutor that adapts to your level. Track vocabulary, correct mistakes, and build fluency at A2-B1 level.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "NorskCoach AI - Din personlige norsklærer",
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [
+    "learn Norwegian",
+    "Norwegian AI tutor",
+    "A2 Norwegian",
+    "B1 Norwegian",
+    "vocabulary trainer",
+    "NorskCoach",
+  ],
+  category: "education",
+  alternates: {
+    canonical: "/",
+  },
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon0.svg", type: "image/svg+xml", sizes: "any" },
+      {
+        url: "/web-app-manifest-192x192.png",
+        type: "image/png",
+        sizes: "192x192",
+      },
+      {
+        url: "/web-app-manifest-512x512.png",
+        type: "image/png",
+        sizes: "512x512",
+      },
+    ],
+    apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "180x180" }],
+    shortcut: ["/favicon.ico"],
+  },
+  openGraph: {
+    type: "website",
+    locale: "nb_NO",
+    siteName: SITE_NAME,
+    url: SITE_URL,
+    title: "NorskCoach AI - Din personlige norsklærer",
+    description: SITE_DESCRIPTION,
+    images: [
+      {
+        url: toAbsoluteUrl(OG_IMAGE_PATH),
+        width: 512,
+        height: 512,
+        alt: `${SITE_NAME} preview image`,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "NorskCoach AI - Din personlige norsklærer",
+    description: SITE_DESCRIPTION,
+    images: [toAbsoluteUrl(OG_IMAGE_PATH)],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  verification: process.env.GOOGLE_SITE_VERIFICATION
+    ? { google: process.env.GOOGLE_SITE_VERIFICATION }
+    : undefined,
 };
 
 export const viewport: Viewport = {
-  themeColor: "#2563eb",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#2563eb" },
+    { media: "(prefers-color-scheme: dark)", color: "#1d4ed8" },
+  ],
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,

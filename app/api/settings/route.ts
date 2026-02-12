@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  nullIfBlank,
+  parseBodyWithSchema,
+  settingsUpdateSchema,
+} from "@/lib/validation";
 
 export async function PUT(req: Request) {
   try {
@@ -9,8 +14,13 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const parsed = await parseBodyWithSchema(req, settingsUpdateSchema);
+    if (!parsed.success) {
+      return NextResponse.json(parsed.error, { status: 400 });
+    }
+
     const { level, coachStyle, explanationLanguage, topics, goal, name } =
-      await req.json();
+      parsed.data;
 
     await prisma.user.update({
       where: { id: user.id },
@@ -18,9 +28,9 @@ export async function PUT(req: Request) {
         ...(level != null && { level }),
         ...(coachStyle != null && { coachStyle }),
         ...(explanationLanguage != null && { explanationLanguage }),
-        ...(topics != null && { topics: Array.isArray(topics) ? topics : undefined }),
+        ...(topics != null && { topics }),
         ...(goal != null && { goal }),
-        ...(name != null && { name }),
+        ...(name !== undefined && { name: nullIfBlank(name) }),
       },
     });
 
