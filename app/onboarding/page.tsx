@@ -268,21 +268,26 @@ export default function OnboardingPage() {
                   {LEVEL_OPTIONS.map((opt) => {
                     const active = data.level === opt.value;
                     return (
-                      <motion.button
+                      <Button
                         key={opt.value}
+                        asChild
                         type="button"
-                        onClick={() => setData((p) => ({ ...p, level: opt.value }))}
-                        animate={active ? { y: -1 } : { y: 0 }}
-                        className={`flex flex-col items-start p-4 rounded-lg border transition-colors text-left ${
-                          active
-                            ? "border-primary bg-primary/8 text-foreground"
-                            : "border-border hover:border-primary/40 text-foreground"
-                        }`}
-                        {...optionHover}
                       >
-                        <span className="font-medium">{opt.label}</span>
-                        <span className="text-sm text-muted-foreground">{opt.desc}</span>
-                      </motion.button>
+                        <motion.button
+                          type="button"
+                          onClick={() => setData((p) => ({ ...p, level: opt.value }))}
+                          animate={active ? { y: -1 } : { y: 0 }}
+                          className={`flex h-auto w-full flex-col items-start rounded-lg border p-4 text-left transition-colors ${
+                            active
+                              ? "border-primary bg-primary/8 text-foreground"
+                              : "border-border hover:border-primary/40 text-foreground"
+                          }`}
+                          {...optionHover}
+                        >
+                          <span className="font-medium">{opt.label}</span>
+                          <span className="text-sm text-muted-foreground">{opt.desc}</span>
+                        </motion.button>
+                      </Button>
                     );
                   })}
                 </div>
@@ -293,21 +298,26 @@ export default function OnboardingPage() {
                   {GOAL_OPTIONS.map((opt) => {
                     const active = data.goal === opt.value;
                     return (
-                      <motion.button
+                      <Button
                         key={opt.value}
+                        asChild
                         type="button"
-                        onClick={() => setData((p) => ({ ...p, goal: opt.value }))}
-                        animate={active ? { y: -1 } : { y: 0 }}
-                        className={`flex flex-col items-start p-4 rounded-lg border transition-colors text-left ${
-                          active
-                            ? "border-primary bg-primary/8 text-foreground"
-                            : "border-border hover:border-primary/40 text-foreground"
-                        }`}
-                        {...optionHover}
                       >
-                        <span className="font-medium">{opt.label}</span>
-                        <span className="text-sm text-muted-foreground">{opt.desc}</span>
-                      </motion.button>
+                        <motion.button
+                          type="button"
+                          onClick={() => setData((p) => ({ ...p, goal: opt.value }))}
+                          animate={active ? { y: -1 } : { y: 0 }}
+                          className={`flex h-auto w-full flex-col items-start rounded-lg border p-4 text-left transition-colors ${
+                            active
+                              ? "border-primary bg-primary/8 text-foreground"
+                              : "border-border hover:border-primary/40 text-foreground"
+                          }`}
+                          {...optionHover}
+                        >
+                          <span className="font-medium">{opt.label}</span>
+                          <span className="text-sm text-muted-foreground">{opt.desc}</span>
+                        </motion.button>
+                      </Button>
                     );
                   })}
                 </div>
@@ -318,31 +328,36 @@ export default function OnboardingPage() {
                   {TOPICS.map((topic, index) => {
                     const active = data.topics.includes(topic.id);
                     return (
-                      <motion.button
+                      <Button
                         key={topic.id}
+                        asChild
                         type="button"
-                        onClick={() => toggleTopic(topic.id)}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.02 }}
-                        className={`flex items-center gap-2 p-3 rounded-lg border transition-colors text-left text-sm ${
-                          active
-                            ? "border-primary bg-primary/8 text-foreground"
-                            : "border-border hover:border-primary/40 text-foreground"
-                        }`}
-                        {...optionHover}
                       >
-                        <motion.div
-                          className={`h-4 w-4 rounded border flex items-center justify-center flex-shrink-0 ${
-                            active ? "bg-primary border-primary" : "border-border"
+                        <motion.button
+                          type="button"
+                          onClick={() => toggleTopic(topic.id)}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.02 }}
+                          className={`flex h-auto w-full items-center gap-2 rounded-lg border p-3 text-left text-sm transition-colors ${
+                            active
+                              ? "border-primary bg-primary/8 text-foreground"
+                              : "border-border hover:border-primary/40 text-foreground"
                           }`}
-                          animate={active ? { scale: 1.06 } : { scale: 1 }}
-                          transition={{ type: "spring", stiffness: 420, damping: 24 }}
+                          {...optionHover}
                         >
-                          {active && <Check className="h-3 w-3 text-primary-foreground" />}
-                        </motion.div>
-                        {topic.label}
-                      </motion.button>
+                          <motion.div
+                            className={`h-4 w-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                              active ? "bg-primary border-primary" : "border-border"
+                            }`}
+                            animate={active ? { scale: 1.06 } : { scale: 1 }}
+                            transition={{ type: "spring", stiffness: 420, damping: 24 }}
+                          >
+                            {active && <Check className="h-3 w-3 text-primary-foreground" />}
+                          </motion.div>
+                          {topic.label}
+                        </motion.button>
+                      </Button>
                     );
                   })}
                 </div>
@@ -355,21 +370,26 @@ export default function OnboardingPage() {
                     {COACH_STYLE_OPTIONS.map((opt) => {
                       const active = data.coachStyle === opt.value;
                       return (
-                        <motion.button
+                        <Button
                           key={opt.value}
+                          asChild
                           type="button"
-                          onClick={() => setData((p) => ({ ...p, coachStyle: opt.value }))}
-                          animate={active ? { y: -1 } : { y: 0 }}
-                          className={`flex flex-col items-start p-4 rounded-lg border transition-colors text-left ${
-                            active
-                              ? "border-primary bg-primary/8 text-foreground"
-                              : "border-border hover:border-primary/40 text-foreground"
-                          }`}
-                          {...optionHover}
                         >
-                          <span className="font-medium">{opt.label}</span>
-                          <span className="text-sm text-muted-foreground">{opt.desc}</span>
-                        </motion.button>
+                          <motion.button
+                            type="button"
+                            onClick={() => setData((p) => ({ ...p, coachStyle: opt.value }))}
+                            animate={active ? { y: -1 } : { y: 0 }}
+                            className={`flex h-auto w-full flex-col items-start rounded-lg border p-4 text-left transition-colors ${
+                              active
+                                ? "border-primary bg-primary/8 text-foreground"
+                                : "border-border hover:border-primary/40 text-foreground"
+                            }`}
+                            {...optionHover}
+                          >
+                            <span className="font-medium">{opt.label}</span>
+                            <span className="text-sm text-muted-foreground">{opt.desc}</span>
+                          </motion.button>
+                        </Button>
                       );
                     })}
                   </div>
@@ -379,25 +399,30 @@ export default function OnboardingPage() {
                     {EXPLANATION_LANGUAGE_OPTIONS.map((opt) => {
                       const active = data.explanationLanguage === opt.value;
                       return (
-                        <motion.button
+                        <Button
                           key={opt.value}
+                          asChild
                           type="button"
-                          onClick={() =>
-                            setData((p) => ({
-                              ...p,
-                              explanationLanguage: opt.value,
-                            }))
-                          }
-                          animate={active ? { y: -1 } : { y: 0 }}
-                          className={`p-3 rounded-lg border transition-colors text-left text-sm ${
-                            active
-                              ? "border-primary bg-primary/8 text-foreground"
-                              : "border-border hover:border-primary/40 text-foreground"
-                          }`}
-                          {...optionHover}
                         >
-                          {opt.label}
-                        </motion.button>
+                          <motion.button
+                            type="button"
+                            onClick={() =>
+                              setData((p) => ({
+                                ...p,
+                                explanationLanguage: opt.value,
+                              }))
+                            }
+                            animate={active ? { y: -1 } : { y: 0 }}
+                            className={`h-auto w-full rounded-lg border p-3 text-left text-sm transition-colors ${
+                              active
+                                ? "border-primary bg-primary/8 text-foreground"
+                                : "border-border hover:border-primary/40 text-foreground"
+                            }`}
+                            {...optionHover}
+                          >
+                            {opt.label}
+                          </motion.button>
+                        </Button>
                       );
                     })}
                   </div>

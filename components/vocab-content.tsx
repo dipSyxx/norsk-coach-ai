@@ -188,42 +188,56 @@ export function VocabContent() {
     >
       <motion.div variants={itemVariants} className="flex items-center gap-2 flex-wrap">
         {FILTERS.map((f) => (
-          <motion.button
+          <Button
             key={f.value}
-            onClick={() => setFilter(f.value)}
+            asChild
+            type="button"
+            variant={filter === f.value ? "default" : "secondary"}
+            size="sm"
             className={cn(
-              "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-              filter === f.value
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:text-foreground",
+              "h-7 rounded-lg px-3 text-xs font-medium",
+              filter !== f.value &&
+                "text-muted-foreground hover:text-foreground",
             )}
-            whileHover={{ y: -1, scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            transition={{ type: "spring", stiffness: 360, damping: 24 }}
           >
-            {f.label}
-          </motion.button>
+            <motion.button
+              type="button"
+              onClick={() => setFilter(f.value)}
+              whileHover={{ y: -1, scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 360, damping: 24 }}
+            >
+              {f.label}
+            </motion.button>
+          </Button>
         ))}
         <div className="ml-auto flex items-center gap-2">
           <motion.div whileHover={{ y: -1, scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-            <Link
-              href="/vocab/quiz"
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
-            >
-              <RotateCcw className="h-3 w-3" />
-              Start quiz
-            </Link>
+            <Button asChild size="sm" className="h-7 gap-1 px-3 text-xs">
+              <Link href="/vocab/quiz">
+                <RotateCcw className="h-3 w-3" />
+                Start quiz
+              </Link>
+            </Button>
           </motion.div>
-          <motion.button
-            onClick={handleToggleAdd}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            whileHover={{ y: -1, scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            transition={{ type: "spring", stiffness: 360, damping: 24 }}
+          <Button
+            asChild
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-7 gap-1 px-3 text-xs text-muted-foreground hover:text-foreground"
           >
-            {showAdd ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-            {showAdd ? "Avbryt" : "Legg til ord"}
-          </motion.button>
+            <motion.button
+              type="button"
+              onClick={handleToggleAdd}
+              whileHover={{ y: -1, scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 360, damping: 24 }}
+            >
+              {showAdd ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+              {showAdd ? "Avbryt" : "Legg til ord"}
+            </motion.button>
+          </Button>
         </div>
       </motion.div>
 
@@ -277,19 +291,21 @@ export function VocabContent() {
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {similarMatches.map((match) => (
-                        <button
+                        <Button
                           key={match.id}
                           type="button"
+                          size="sm"
+                          variant="outline"
                           onClick={() =>
                             setAddForm((prev) => ({
                               ...prev,
                               term: match.term,
                             }))
                           }
-                          className="px-2 py-1 rounded-md text-xs bg-background border border-border hover:bg-muted transition-colors"
+                          className="h-7 px-2 text-xs"
                         >
                           {match.term}
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   </div>

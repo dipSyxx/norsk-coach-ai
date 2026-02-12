@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import { Plus, Trash2, MessageSquare, PanelLeftClose } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { AnimatePresence, motion } from "motion/react";
 
 interface Session {
@@ -36,24 +37,40 @@ export function SessionSidebar({
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <h2 className="font-semibold text-foreground text-sm">Samtaler</h2>
         <div className="flex items-center gap-1">
-          <motion.button
-            onClick={() => onNewSession("free_chat")}
-            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Ny samtale"
-            whileHover={{ y: -1 }}
-            whileTap={{ scale: 0.95 }}
+          <Button
+            asChild
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
           >
-            <Plus className="h-4 w-4" />
-          </motion.button>
-          <motion.button
-            onClick={onMobileToggle}
-            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors md:hidden"
-            aria-label="Lukk sidebar"
-            whileHover={{ y: -1 }}
-            whileTap={{ scale: 0.95 }}
+            <motion.button
+              type="button"
+              onClick={() => onNewSession("free_chat")}
+              aria-label="Ny samtale"
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <Plus className="h-4 w-4" />
+            </motion.button>
+          </Button>
+          <Button
+            asChild
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground md:hidden"
           >
-            <PanelLeftClose className="h-4 w-4" />
-          </motion.button>
+            <motion.button
+              type="button"
+              onClick={onMobileToggle}
+              aria-label="Lukk sidebar"
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </motion.button>
+          </Button>
         </div>
       </div>
 
@@ -88,20 +105,26 @@ export function SessionSidebar({
                   transition={{ type: "spring", stiffness: 330, damping: 24 }}
                 >
                   <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
-                  <span className="flex-1 truncate text-xs">
-                    {session.title}
-                  </span>
-                  <motion.button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteSession(session.id);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-destructive transition-all"
-                    aria-label={`Slett ${session.title}`}
-                    whileTap={{ scale: 0.92 }}
+                  <span className="flex-1 truncate text-xs">{session.title}</span>
+                  <Button
+                    asChild
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 opacity-0 group-hover:opacity-100 hover:text-foreground"
                   >
-                    <Trash2 className="h-3 w-3" />
-                  </motion.button>
+                    <motion.button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteSession(session.id);
+                      }}
+                      aria-label={`Slett ${session.title}`}
+                      whileTap={{ scale: 0.92 }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </motion.button>
+                  </Button>
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -119,18 +142,25 @@ export function SessionSidebar({
           { mode: "rett_teksten", label: "Rett teksten" },
           { mode: "ovelse", label: "Lag øvelse" },
         ].map((m, index) => (
-          <motion.button
+          <Button
             key={m.mode}
-            onClick={() => onNewSession(m.mode)}
-            className="text-xs text-left px-2 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            initial={{ opacity: 0, x: -6 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.03 }}
-            whileHover={{ x: 1.5 }}
-            whileTap={{ scale: 0.98 }}
+            asChild
+            type="button"
+            variant="ghost"
+            className="h-auto justify-start rounded-md px-2 py-1.5 text-left text-xs font-normal text-muted-foreground hover:text-foreground"
           >
-            {m.label}
-          </motion.button>
+            <motion.button
+              type="button"
+              onClick={() => onNewSession(m.mode)}
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: index * 0.03 }}
+              whileHover={{ x: 1.5 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {m.label}
+            </motion.button>
+          </Button>
         ))}
       </div>
     </div>

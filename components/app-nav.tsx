@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
+import { Button } from "@/components/ui/button";
 import { motion } from "motion/react";
 
 const NAV_ITEMS = [
@@ -106,16 +107,23 @@ export function AppNav() {
         </nav>
 
         <div className="px-3 pb-4">
-          <motion.button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted w-full"
-            whileHover={{ x: 2 }}
-            whileTap={{ scale: 0.99 }}
-            transition={{ type: "spring", stiffness: 340, damping: 22 }}
+          <Button
+            asChild
+            type="button"
+            variant="ghost"
+            className="w-full justify-start gap-3 px-3 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground"
           >
-            <LogOut className="h-4 w-4" />
-            Logg ut
-          </motion.button>
+            <motion.button
+              type="button"
+              onClick={handleLogout}
+              whileHover={{ x: 2 }}
+              whileTap={{ scale: 0.99 }}
+              transition={{ type: "spring", stiffness: 340, damping: 22 }}
+            >
+              <LogOut className="h-4 w-4" />
+              Logg ut
+            </motion.button>
+          </Button>
         </div>
       </aside>
     </>

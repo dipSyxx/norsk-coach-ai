@@ -283,22 +283,28 @@ export function SettingsContent({
               {LEVEL_OPTIONS.map((l) => {
                 const active = data.level === l;
                 return (
-                  <motion.button
+                  <Button
                     key={l}
+                    asChild
                     type="button"
-                    onClick={() => setData((p) => ({ ...p, level: l }))}
-                    aria-pressed={active}
-                    animate={active ? { y: -1 } : { y: 0 }}
+                    variant={active ? "default" : "secondary"}
                     className={cn(
-                      "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                      "h-9 rounded-lg px-4 text-sm font-medium",
                       active
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:text-foreground"
+                        ? ""
+                        : "text-muted-foreground hover:text-foreground"
                     )}
-                    {...chipMotion}
                   >
-                    {l}
-                  </motion.button>
+                    <motion.button
+                      type="button"
+                      onClick={() => setData((p) => ({ ...p, level: l }))}
+                      aria-pressed={active}
+                      animate={active ? { y: -1 } : { y: 0 }}
+                      {...chipMotion}
+                    >
+                      {l}
+                    </motion.button>
+                  </Button>
                 );
               })}
             </div>
@@ -310,22 +316,28 @@ export function SettingsContent({
               {GOAL_OPTIONS.map((g) => {
                 const active = data.goal === g.value;
                 return (
-                  <motion.button
+                  <Button
                     key={g.value}
+                    asChild
                     type="button"
-                    onClick={() => setData((p) => ({ ...p, goal: g.value }))}
-                    aria-pressed={active}
-                    animate={active ? { y: -1 } : { y: 0 }}
+                    variant={active ? "default" : "secondary"}
                     className={cn(
-                      "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                      "h-9 rounded-lg px-4 text-sm font-medium",
                       active
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:text-foreground"
+                        ? ""
+                        : "text-muted-foreground hover:text-foreground"
                     )}
-                    {...chipMotion}
                   >
-                    {g.label}
-                  </motion.button>
+                    <motion.button
+                      type="button"
+                      onClick={() => setData((p) => ({ ...p, goal: g.value }))}
+                      aria-pressed={active}
+                      animate={active ? { y: -1 } : { y: 0 }}
+                      {...chipMotion}
+                    >
+                      {g.label}
+                    </motion.button>
+                  </Button>
                 );
               })}
             </div>
@@ -337,22 +349,28 @@ export function SettingsContent({
               {COACH_STYLE_OPTIONS.map((s) => {
                 const active = data.coachStyle === s.value;
                 return (
-                  <motion.button
+                  <Button
                     key={s.value}
+                    asChild
                     type="button"
-                    onClick={() => setData((p) => ({ ...p, coachStyle: s.value }))}
-                    aria-pressed={active}
-                    animate={active ? { y: -1 } : { y: 0 }}
+                    variant={active ? "default" : "secondary"}
                     className={cn(
-                      "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                      "h-9 rounded-lg px-4 text-sm font-medium",
                       active
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:text-foreground"
+                        ? ""
+                        : "text-muted-foreground hover:text-foreground"
                     )}
-                    {...chipMotion}
                   >
-                    {s.label}
-                  </motion.button>
+                    <motion.button
+                      type="button"
+                      onClick={() => setData((p) => ({ ...p, coachStyle: s.value }))}
+                      aria-pressed={active}
+                      animate={active ? { y: -1 } : { y: 0 }}
+                      {...chipMotion}
+                    >
+                      {s.label}
+                    </motion.button>
+                  </Button>
                 );
               })}
             </div>
@@ -364,27 +382,33 @@ export function SettingsContent({
               {EXPLANATION_LANGUAGE_OPTIONS.map((l) => {
                 const active = data.explanationLanguage === l.value;
                 return (
-                  <motion.button
+                  <Button
                     key={l.value}
+                    asChild
                     type="button"
-                    onClick={() =>
-                      setData((p) => ({
-                        ...p,
-                        explanationLanguage: l.value,
-                      }))
-                    }
-                    aria-pressed={active}
-                    animate={active ? { y: -1 } : { y: 0 }}
+                    variant={active ? "default" : "secondary"}
                     className={cn(
-                      "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                      "h-9 rounded-lg px-4 text-sm font-medium",
                       active
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:text-foreground"
+                        ? ""
+                        : "text-muted-foreground hover:text-foreground"
                     )}
-                    {...chipMotion}
                   >
-                    {l.label}
-                  </motion.button>
+                    <motion.button
+                      type="button"
+                      onClick={() =>
+                        setData((p) => ({
+                          ...p,
+                          explanationLanguage: l.value,
+                        }))
+                      }
+                      aria-pressed={active}
+                      animate={active ? { y: -1 } : { y: 0 }}
+                      {...chipMotion}
+                    >
+                      {l.label}
+                    </motion.button>
+                  </Button>
                 );
               })}
             </div>
@@ -396,36 +420,42 @@ export function SettingsContent({
               {TOPICS.map((t, index) => {
                 const active = data.topics.includes(t.id);
                 return (
-                  <motion.button
+                  <Button
                     key={t.id}
+                    asChild
                     type="button"
-                    onClick={() => toggleTopic(t.id)}
-                    aria-pressed={active}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.015 }}
+                    variant={active ? "default" : "secondary"}
                     className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                      "h-8 gap-1.5 rounded-lg px-3 text-xs font-medium",
                       active
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:text-foreground"
+                        ? ""
+                        : "text-muted-foreground hover:text-foreground"
                     )}
-                    {...chipMotion}
                   >
-                    <AnimatePresence mode="wait">
-                      {active && (
-                        <motion.span
-                          key="check"
-                          initial={{ scale: 0.4, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.4, opacity: 0 }}
-                        >
-                          <Check className="h-3 w-3" />
-                        </motion.span>
-                      )}
-                    </AnimatePresence>
-                    {t.label}
-                  </motion.button>
+                    <motion.button
+                      type="button"
+                      onClick={() => toggleTopic(t.id)}
+                      aria-pressed={active}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.015 }}
+                      {...chipMotion}
+                    >
+                      <AnimatePresence mode="wait">
+                        {active && (
+                          <motion.span
+                            key="check"
+                            initial={{ scale: 0.4, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.4, opacity: 0 }}
+                          >
+                            <Check className="h-3 w-3" />
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                      {t.label}
+                    </motion.button>
+                  </Button>
                 );
               })}
             </div>
