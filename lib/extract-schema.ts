@@ -1,7 +1,12 @@
 import { z } from "zod";
 
+export const vocabKindSchema = z.enum(["vocab", "phrase", "grammar"]);
+export const vocabSourceSchema = z.enum(["assistant_reply", "correction"]);
+
 export const vocabItemSchema = z.object({
   term: z.string().describe("Norwegian word or phrase"),
+  kind: vocabKindSchema.describe("Vocabulary taxonomy: vocab, phrase, or grammar"),
+  source: vocabSourceSchema.describe("Where the item came from: assistant reply or correction"),
   explanation: z.string().describe("Brief explanation in Norwegian or target language"),
   example: z.string().describe("A short Norwegian sentence that uses the term (not the tutor's question); empty string if no suitable example"),
 });

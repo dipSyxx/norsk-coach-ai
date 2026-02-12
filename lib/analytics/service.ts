@@ -10,6 +10,7 @@ import {
   toDateKeyFromUtcDate,
   toUtcDateFromDateKey,
 } from "@/lib/analytics/date";
+import { computeNextReviewAtFromStrength } from "@/lib/srs";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -227,12 +228,6 @@ async function markUserActiveDay(
   };
 }
 
-function computeNextReviewAt(strength: number): Date {
-  const intervals: number[] = [0.5, 1, 2, 4, 8, 16];
-  const intervalDays = intervals[strength] ?? 1;
-  return new Date(Date.now() + intervalDays * 24 * 60 * 60 * 1000);
-}
-
 export async function recordQuizStarted(
   params: {
     userId: string;
@@ -402,7 +397,7 @@ export async function recordQuizAnswerAndReview(
       data: {
         strength: newStrength,
         lastSeenAt: new Date(),
-        nextReviewAt: computeNextReviewAt(newStrength),
+        nextReviewAt: computeNextReviewAtFromStrength(newStrength),
       },
     });
 

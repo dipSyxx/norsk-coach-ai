@@ -15,9 +15,17 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 interface VocabItem {
   id: string;
   term: string;
+  kind?: "vocab" | "phrase" | "grammar";
+  source?: "assistant_reply" | "correction";
   explanation: string | null;
   example_sentence: string | null;
   created_at: string;
+}
+
+interface SessionVocabResponse {
+  items?: VocabItem[];
+  lexical_items?: VocabItem[];
+  grammar_items?: VocabItem[];
 }
 
 export function SessionVocabPanel({
@@ -31,7 +39,7 @@ export function SessionVocabPanel({
   const vocabKey = sessionId
     ? `/api/sessions/${sessionId}/vocab?t=${refreshKey ?? 0}`
     : null;
-  const { data, isLoading } = useSWR<{ items: VocabItem[] }>(
+  const { data, isLoading } = useSWR<SessionVocabResponse>(
     vocabKey,
     fetcher,
     { refreshInterval: 20000 }
@@ -42,7 +50,8 @@ export function SessionVocabPanel({
   const [addExampleSentence, setAddExampleSentence] = useState("");
   const [adding, setAdding] = useState(false);
 
-  const items = data?.items ?? [];
+  const lexicalItems = data?.lexical_items ?? data?.items ?? [];
+  const grammarItems = data?.grammar_items ?? [];
 
   async function handleAdd() {
     const term = addTerm.trim();
@@ -145,11 +154,11 @@ export function SessionVocabPanel({
                 </div>
               ))}
             </div>
-          ) : items.length === 0 ? (
+          ) : lexicalItems.length === 0 ? (
             <p className="text-xs text-muted-foreground">Nye ord fra chatten vises her.</p>
           ) : (
             <AnimatePresence initial={false}>
-              {items.map((item) => (
+              {lexicalItems.map((item) => (
                 <motion.div
                   key={item.id}
                   className="rounded-lg border border-border bg-muted/30 p-2 text-xs"
@@ -170,6 +179,46 @@ export function SessionVocabPanel({
               ))}
             </AnimatePresence>
           )}
+
+          <div className="pt-2 border-t border-border space-y-2">
+            <p className="text-xs text-muted-foreground font-medium">Grammatikkpunkter</p>
+            {isLoading ? (
+              <div className="space-y-2">
+                {[1, 2].map((i) => (
+                  <div key={`grammar-skeleton-${i}`} className="rounded-lg border border-border bg-muted/30 p-2">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-3 w-full mt-2" />
+                  </div>
+                ))}
+              </div>
+            ) : grammarItems.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Ingen grammatikkpunkter i denne samtalen ennå.
+              </p>
+            ) : (
+              <AnimatePresence initial={false}>
+                {grammarItems.map((item) => (
+                  <motion.div
+                    key={`grammar-${item.id}`}
+                    className="rounded-lg border border-border bg-muted/30 p-2 text-xs"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    whileHover={{ y: -1, scale: 1.004 }}
+                    transition={{ type: "spring", stiffness: 320, damping: 24 }}
+                  >
+                    <div className="font-medium text-foreground">{item.term}</div>
+                    {item.explanation && (
+                      <p className="text-muted-foreground mt-0.5">{item.explanation}</p>
+                    )}
+                    {item.example_sentence && (
+                      <p className="text-muted-foreground mt-1 italic">{item.example_sentence}</p>
+                    )}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            )}
+          </div>
         </div>
       </ScrollArea>
     </motion.div>

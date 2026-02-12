@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isLexicalKind } from "@/lib/vocab-taxonomy";
 
 /**
  * GET /api/sessions/:id/vocab — vocab items from this session (for "New words from this chat" panel).
@@ -34,20 +35,31 @@ export async function GET(
       select: {
         id: true,
         term: true,
+        kind: true,
+        source: true,
         explanation: true,
         exampleSentence: true,
         createdAt: true,
       },
     });
 
+    const mapped = items.map((i) => ({
+      id: i.id,
+      term: i.term,
+      kind: i.kind,
+      source: i.source,
+      explanation: i.explanation,
+      example_sentence: i.exampleSentence,
+      created_at: i.createdAt,
+    }));
+
+    const lexicalItems = mapped.filter((item) => isLexicalKind(item.kind));
+    const grammarItems = mapped.filter((item) => item.kind === "grammar");
+
     return NextResponse.json({
-      items: items.map((i) => ({
-        id: i.id,
-        term: i.term,
-        explanation: i.explanation,
-        example_sentence: i.exampleSentence,
-        created_at: i.createdAt,
-      })),
+      items: lexicalItems,
+      lexical_items: lexicalItems,
+      grammar_items: grammarItems,
     });
   } catch (error) {
     console.error("Session vocab error:", error);

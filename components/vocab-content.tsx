@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
@@ -19,6 +19,8 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 interface VocabItem {
   id: string;
   term: string;
+  kind?: "vocab" | "phrase" | "grammar";
+  source?: "assistant_reply" | "correction";
   explanation: string | null;
   example_sentence: string | null;
   strength: number;
@@ -37,7 +39,12 @@ const FILTERS = [
   { value: "new", label: "Nye" },
   { value: "due", label: "Til repetering" },
   { value: "mastered", label: "Mestret" },
-];
+] as const;
+
+const VIEW_MODES = [
+  { value: "lexical", label: "Ordforråd" },
+  { value: "grammar", label: "Grammatikkpunkter" },
+] as const;
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -60,8 +67,10 @@ const itemVariants: Variants = {
 export function VocabContent() {
   const searchParams = useSearchParams();
   const initialFilter = searchParams.get("filter") || "all";
+  const initialKind = searchParams.get("kind") === "grammar" ? "grammar" : "lexical";
 
   const [filter, setFilter] = useState(initialFilter);
+  const [kind, setKind] = useState<"lexical" | "grammar">(initialKind);
   const [showAdd, setShowAdd] = useState(false);
   const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
   const [addForm, setAddForm] = useState({
@@ -71,12 +80,12 @@ export function VocabContent() {
   });
 
   const { data, isLoading } = useSWR<{ items: VocabItem[] }>(
-    `/api/vocab?filter=${filter}`,
+    `/api/vocab?filter=${filter}&kind=${kind}`,
     fetcher,
   );
   const { data: allVocabData, isLoading: isCheckingSimilar } = useSWR<{
     items: VocabItem[];
-  }>(showAdd ? "/api/vocab?filter=all" : null, fetcher);
+  }>(showAdd ? "/api/vocab?filter=all&kind=lexical" : null, fetcher);
 
   const items = data?.items || [];
   const allVocabItems = allVocabData?.items;
@@ -164,11 +173,11 @@ export function VocabContent() {
       setShowAdd(false);
       resetAddForm();
       await Promise.all([
-        mutate(`/api/vocab?filter=${filter}`),
-        mutate("/api/vocab?filter=all"),
-        mutate("/api/vocab?filter=new"),
-        mutate("/api/vocab?filter=due"),
-        mutate("/api/vocab?filter=mastered"),
+        mutate(`/api/vocab?filter=${filter}&kind=${kind}`),
+        mutate("/api/vocab?filter=all&kind=lexical"),
+        mutate("/api/vocab?filter=new&kind=lexical"),
+        mutate("/api/vocab?filter=due&kind=lexical"),
+        mutate("/api/vocab?filter=mastered&kind=lexical"),
       ]);
     } catch (error) {
       toast.error(
@@ -186,6 +195,37 @@ export function VocabContent() {
       initial="hidden"
       animate="show"
     >
+      <motion.div variants={itemVariants} className="flex items-center gap-2 flex-wrap">
+        {VIEW_MODES.map((v) => (
+          <Button
+            key={v.value}
+            asChild
+            type="button"
+            variant={kind === v.value ? "default" : "secondary"}
+            size="sm"
+            className={cn(
+              "h-7 rounded-lg px-3 text-xs font-medium",
+              kind !== v.value && "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <motion.button
+              type="button"
+              onClick={() => {
+                setKind(v.value);
+                if (v.value === "grammar") {
+                  setShowAdd(false);
+                }
+              }}
+              whileHover={{ y: -1, scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 360, damping: 24 }}
+            >
+              {v.label}
+            </motion.button>
+          </Button>
+        ))}
+      </motion.div>
+
       <motion.div variants={itemVariants} className="flex items-center gap-2 flex-wrap">
         {FILTERS.map((f) => (
           <Button
@@ -212,37 +252,41 @@ export function VocabContent() {
           </Button>
         ))}
         <div className="ml-auto flex items-center gap-2">
-          <motion.div whileHover={{ y: -1, scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-            <Button asChild size="sm" className="h-7 gap-1 px-3 text-xs">
-              <Link href="/vocab/quiz">
-                <RotateCcw className="h-3 w-3" />
-                Start quiz
-              </Link>
-            </Button>
-          </motion.div>
-          <Button
-            asChild
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="h-7 gap-1 px-3 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <motion.button
+          {kind === "lexical" && (
+            <motion.div whileHover={{ y: -1, scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+              <Button asChild size="sm" className="h-7 gap-1 px-3 text-xs">
+                <Link href="/vocab/quiz">
+                  <RotateCcw className="h-3 w-3" />
+                  Start quiz
+                </Link>
+              </Button>
+            </motion.div>
+          )}
+          {kind === "lexical" && (
+            <Button
+              asChild
               type="button"
-              onClick={handleToggleAdd}
-              whileHover={{ y: -1, scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              transition={{ type: "spring", stiffness: 360, damping: 24 }}
+              size="sm"
+              variant="secondary"
+              className="h-7 gap-1 px-3 text-xs text-muted-foreground hover:text-foreground"
             >
-              {showAdd ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-              {showAdd ? "Avbryt" : "Legg til ord"}
-            </motion.button>
-          </Button>
+              <motion.button
+                type="button"
+                onClick={handleToggleAdd}
+                whileHover={{ y: -1, scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 360, damping: 24 }}
+              >
+                {showAdd ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                {showAdd ? "Avbryt" : "Legg til ord"}
+              </motion.button>
+            </Button>
+          )}
         </div>
       </motion.div>
 
       <AnimatePresence>
-        {showAdd && (
+        {showAdd && kind === "lexical" && (
           <motion.form
             onSubmit={handleAdd}
             className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3"
@@ -381,16 +425,20 @@ export function VocabContent() {
         >
           <BookOpen className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground text-sm mb-1">
-            {filter === "due"
-              ? "Ingen ord til repetering akkurat nå"
-              : filter === "mastered"
-                ? "Du har ikke mestret noen ord ennå"
-                : "Ingen ord ennå"}
+            {kind === "grammar"
+              ? "Ingen grammatikkpunkter ennå"
+              : filter === "due"
+                ? "Ingen ord til repetering akkurat nå"
+                : filter === "mastered"
+                  ? "Du har ikke mestret noen ord ennå"
+                  : "Ingen ord ennå"}
           </p>
           <p className="text-xs text-muted-foreground">
-            {filter === "all" || filter === "new"
-              ? "Chat med veilederen for å samle nye ord, eller legg til manuelt."
-              : "Fortsett å bruke appen for å bygge ordforrådet ditt."}
+            {kind === "grammar"
+              ? "Grammatikkpunkter fra samtaler vises her."
+              : filter === "all" || filter === "new"
+                ? "Chat med veilederen for å samle nye ord, eller legg til manuelt."
+                : "Fortsett å bruke appen for å bygge ordforrådet ditt."}
           </p>
         </motion.div>
       ) : (
@@ -410,7 +458,7 @@ export function VocabContent() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium text-foreground text-sm">{item.term}</span>
-                      <StrengthBadge strength={item.strength} />
+                      {kind === "lexical" && <StrengthBadge strength={item.strength} />}
                     </div>
                     {item.explanation && (
                       <p className="text-xs text-muted-foreground">{item.explanation}</p>

@@ -31,6 +31,7 @@ interface DashboardData {
     currentStreak: number;
     longestStreak: number;
     quizCompletionRate7d: number | null;
+    knewRatio7d: number | null;
     unknownRatio7d: number | null;
   };
   recentSessions: Array<{
@@ -77,6 +78,7 @@ export function DashboardContent() {
     currentStreak: 0,
     longestStreak: 0,
     quizCompletionRate7d: null,
+    knewRatio7d: null,
     unknownRatio7d: null,
   };
   const sessions = data?.recentSessions || [];
@@ -160,6 +162,7 @@ export function DashboardContent() {
         />
         <RatioCard
           completionRate7d={learning.quizCompletionRate7d}
+          knewRatio7d={learning.knewRatio7d}
           unknownRatio7d={learning.unknownRatio7d}
         />
       </motion.div>
@@ -332,9 +335,11 @@ function DashboardSkeleton() {
 
 function RatioCard({
   completionRate7d,
+  knewRatio7d,
   unknownRatio7d,
 }: {
   completionRate7d: number | null;
+  knewRatio7d: number | null;
   unknownRatio7d: number | null;
 }) {
   return (
@@ -352,6 +357,10 @@ function RatioCard({
         <span className="font-semibold">
           {formatPercent(completionRate7d)}
         </span>
+      </div>
+      <div className="text-sm text-foreground mt-1">
+        Vet-ratio:{" "}
+        <span className="font-semibold">{formatPercent(knewRatio7d)}</span>
       </div>
       <div className="text-sm text-foreground mt-1">
         Vet ikke-ratio:{" "}

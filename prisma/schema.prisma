@@ -10,6 +10,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum VocabKind {
+  vocab
+  phrase
+  grammar
+}
+
+enum VocabSource {
+  assistant_reply
+  correction
+}
+
 // --- Auth.js models (User extended with app fields; Session/Account/VerificationToken new) ---
 
 model User {
@@ -120,6 +131,8 @@ model VocabItem {
   userId         String    @map("user_id") @db.Uuid
   sessionId      String?   @map("session_id") @db.Uuid
   term           String
+  kind           VocabKind @default(vocab)
+  source         VocabSource @default(assistant_reply)
   explanation    String?
   exampleSentence String?  @map("example_sentence")
   strength       Int       @default(0)
@@ -133,6 +146,7 @@ model VocabItem {
 
   @@unique([userId, term])
   @@index([userId, nextReviewAt(sort: Asc)])
+  @@index([userId, kind, createdAt])
   @@map("vocab_items")
 }
 

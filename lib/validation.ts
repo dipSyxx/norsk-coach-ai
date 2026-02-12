@@ -37,6 +37,7 @@ export const TOPIC_VALUES = [
   "kultur",
   "natur",
 ] as const;
+export const VOCAB_KIND_FILTER_VALUES = ["lexical", "grammar"] as const;
 export const CHAT_MODE_VALUES = [
   "free_chat",
   "rollespill",
@@ -51,6 +52,7 @@ const coachStyleSchema = z.enum(COACH_STYLE_VALUES);
 const explanationLanguageSchema = z.enum(EXPLANATION_LANGUAGE_VALUES);
 const topicSchema = z.enum(TOPIC_VALUES);
 const chatModeSchema = z.enum(CHAT_MODE_VALUES);
+const vocabKindFilterSchema = z.enum(VOCAB_KIND_FILTER_VALUES);
 
 const topicsSchema = z
   .array(topicSchema)
@@ -105,12 +107,45 @@ export const sessionCreateSchema = z
   })
   .strict();
 
+const chatPartSchema = z
+  .object({
+    type: z.string(),
+    text: z.string().optional(),
+  })
+  .passthrough();
+
+const chatMessageSchema = z
+  .object({
+    role: z.string(),
+    content: z.string().optional(),
+    parts: z.array(chatPartSchema).optional(),
+  })
+  .passthrough();
+
+const chatMessagesSchema = z.array(chatMessageSchema).max(200);
+
+export const chatRequestSchema = z
+  .object({
+    sessionId: z.string().uuid(),
+    messages: z.union([
+      chatMessagesSchema,
+      z.object({ messages: chatMessagesSchema }).passthrough(),
+    ]),
+  })
+  .passthrough();
+
 export const vocabCreateSchema = z
   .object({
     term: z.string().trim().min(1).max(80),
     explanation: optionalText(240),
     exampleSentence: optionalText(500),
     sessionId: z.string().uuid().optional().nullable(),
+  })
+  .strict();
+
+export const vocabKindQuerySchema = z
+  .object({
+    kind: vocabKindFilterSchema.default("lexical"),
   })
   .strict();
 

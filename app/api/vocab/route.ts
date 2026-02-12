@@ -2,11 +2,15 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { prepareVocabTerm } from "@/lib/vocab-normalization";
+import { computeNextReviewAtFromStrength } from "@/lib/srs";
+import { mergeVocabKinds } from "@/lib/vocab-taxonomy";
 import {
   nullIfBlank,
   parseBodyWithSchema,
   vocabCreateSchema,
 } from "@/lib/validation";
+
+const LEXICAL_KINDS = ["vocab", "phrase"] as const;
 
 export async function GET(req: Request) {
   try {
@@ -17,8 +21,15 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const filter = url.searchParams.get("filter") || "all";
+    const kindParam = url.searchParams.get("kind");
+    const kindFilter = kindParam === "grammar" ? "grammar" : "lexical";
 
-    const baseWhere = { userId: user.id };
+    const baseWhere = {
+      userId: user.id,
+      ...(kindFilter === "grammar"
+        ? { kind: "grammar" as const }
+        : { kind: { in: [...LEXICAL_KINDS] } }),
+    };
     let items;
 
     if (filter === "due") {
@@ -52,6 +63,8 @@ export async function GET(req: Request) {
       last_seen_at: i.lastSeenAt,
       next_review_at: i.nextReviewAt,
       created_at: i.createdAt,
+      kind: i.kind,
+      source: i.source,
     }));
 
     return NextResponse.json({ items: mapped });
@@ -99,7 +112,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const nextReviewAt = new Date(Date.now() + 12 * 60 * 60 * 1000); // 0.5 days
+    const nextReviewAt = computeNextReviewAtFromStrength(0);
 
     const existingTerm = await prisma.vocabItem.findFirst({
       where: {
@@ -119,7 +132,7 @@ export async function POST(req: Request) {
           },
         ],
       },
-      select: { term: true },
+      select: { term: true, kind: true },
     });
 
     const hasExistingMatch = Boolean(existingTerm);
@@ -135,11 +148,14 @@ export async function POST(req: Request) {
         userId: user.id,
         sessionId: sessionId ?? null,
         term: preparedTerm.term,
+        kind: "vocab",
+        source: "assistant_reply",
         explanation: nullIfBlank(explanation),
         exampleSentence: nullIfBlank(exampleSentence),
         nextReviewAt,
       },
       update: {
+        kind: mergeVocabKinds(existingTerm?.kind, "vocab"),
         explanation: nullIfBlank(explanation),
         exampleSentence: nullIfBlank(exampleSentence),
         ...(sessionId != null && { sessionId }),
@@ -155,6 +171,8 @@ export async function POST(req: Request) {
         example_sentence: item.exampleSentence,
         strength: item.strength,
         created_at: item.createdAt,
+        kind: item.kind,
+        source: item.source,
       },
     });
   } catch (error) {

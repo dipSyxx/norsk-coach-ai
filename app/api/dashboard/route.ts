@@ -83,6 +83,11 @@ export async function GET() {
         ? { action: "repeter" as const, count: dueWords }
         : { action: "start_chat" as const };
 
+    const knewRatio7d =
+      learningMetrics.unknownRatio7d == null
+        ? null
+        : Math.max(0, Math.min(1, 1 - learningMetrics.unknownRatio7d));
+
     return NextResponse.json({
       stats: {
         totalSessions: sessionCount,
@@ -92,7 +97,10 @@ export async function GET() {
         dueWords,
       },
       iDag: { newWordsToday, mistakesToday },
-      learning: learningMetrics,
+      learning: {
+        ...learningMetrics,
+        knewRatio7d,
+      },
       dagensMal,
       recentSessions: recentSessions.map((s) => ({
         id: s.id,
