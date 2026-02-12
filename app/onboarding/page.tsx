@@ -272,6 +272,8 @@ export default function OnboardingPage() {
                         key={opt.value}
                         asChild
                         type="button"
+                        variant="ghost"
+                        className="h-auto w-full p-0 font-normal hover:bg-transparent"
                       >
                         <motion.button
                           type="button"
@@ -302,6 +304,8 @@ export default function OnboardingPage() {
                         key={opt.value}
                         asChild
                         type="button"
+                        variant="ghost"
+                        className="h-auto w-full p-0 font-normal hover:bg-transparent"
                       >
                         <motion.button
                           type="button"
@@ -332,6 +336,8 @@ export default function OnboardingPage() {
                         key={topic.id}
                         asChild
                         type="button"
+                        variant="ghost"
+                        className="h-auto w-full p-0 font-normal hover:bg-transparent"
                       >
                         <motion.button
                           type="button"
@@ -374,6 +380,8 @@ export default function OnboardingPage() {
                           key={opt.value}
                           asChild
                           type="button"
+                          variant="ghost"
+                          className="h-auto w-full p-0 font-normal hover:bg-transparent"
                         >
                           <motion.button
                             type="button"
@@ -403,6 +411,8 @@ export default function OnboardingPage() {
                           key={opt.value}
                           asChild
                           type="button"
+                          variant="ghost"
+                          className="h-auto w-full p-0 font-normal hover:bg-transparent"
                         >
                           <motion.button
                             type="button"
