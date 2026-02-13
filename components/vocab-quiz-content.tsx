@@ -120,9 +120,10 @@ export function VocabQuizContent() {
       return false;
     }
 
+    await refreshVocabCaches();
     setQuizRunId(null);
     return true;
-  }, [buildDurationSec, quizRunId]);
+  }, [buildDurationSec, quizRunId, refreshVocabCaches]);
 
   const sendQuizExit = useCallback(async () => {
     if (!quizRunId || quizMode !== "running") return;
@@ -138,11 +139,12 @@ export function VocabQuizContent() {
           ...(durationSec != null ? { durationSec } : {}),
         }),
       });
+      await refreshVocabCaches();
       setQuizRunId(null);
     } catch {
       // non-blocking
     }
-  }, [buildDurationSec, quizMode, quizRunId]);
+  }, [buildDurationSec, quizMode, quizRunId, refreshVocabCaches]);
 
   const handleReturnToVocab = useCallback(async () => {
     if (quizMode === "running") {
@@ -286,8 +288,6 @@ export function VocabQuizContent() {
       }));
       setQuizAttemptIndex((prev) => prev + 1);
       setIsRevealed(false);
-
-      await refreshVocabCaches();
 
       if (remaining.length === 0) {
         const completed = await completeQuizRun();
