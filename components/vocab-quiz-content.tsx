@@ -106,7 +106,9 @@ function getRequeueInsertIndex(queueLength: number): number {
   if (queueLength <= 0) return 0;
   const desiredGap =
     QUIZ_REQUEUE_MIN_GAP +
-    Math.floor(Math.random() * (QUIZ_REQUEUE_MAX_GAP - QUIZ_REQUEUE_MIN_GAP + 1));
+    Math.floor(
+      Math.random() * (QUIZ_REQUEUE_MAX_GAP - QUIZ_REQUEUE_MIN_GAP + 1),
+    );
   return Math.min(queueLength, desiredGap);
 }
 
@@ -137,7 +139,7 @@ export function VocabQuizContent() {
         : 0;
   const swipeStrength = Math.min(
     1,
-    Math.abs(swipeOffset) / SWIPE_COMMIT_THRESHOLD
+    Math.abs(swipeOffset) / SWIPE_COMMIT_THRESHOLD,
   );
   const leftOverlayOpacity =
     swipeOffset < -SWIPE_PARTIAL_THRESHOLD
@@ -219,7 +221,9 @@ export function VocabQuizContent() {
     setQuizMode("loading");
 
     try {
-      const res = await fetch("/api/vocab?filter=all&kind=lexical&includeRisk=1");
+      const res = await fetch(
+        "/api/vocab?filter=all&kind=lexical&includeRisk=1",
+      );
       if (!res.ok) {
         throw new Error("Failed to load vocab");
       }
@@ -227,7 +231,7 @@ export function VocabQuizContent() {
       const payload = (await res.json()) as { items?: VocabItem[] };
       const allItems = payload.items ?? [];
       const eligibleItems = allItems.filter(
-        (item) => item.strength < MASTERED_STRENGTH
+        (item) => item.strength < MASTERED_STRENGTH,
       );
 
       if (eligibleItems.length === 0) {
@@ -377,7 +381,7 @@ export function VocabQuizContent() {
       quizAttemptIndex,
       quizQueue,
       quizRunId,
-    ]
+    ],
   );
 
   const commitSwipeAnswer = useCallback(
@@ -390,7 +394,7 @@ export function VocabQuizContent() {
       setSwipeOffset(0);
       setIsSwipeCommitting(false);
     },
-    [handleQuizAnswer, isSubmittingQuizAnswer, isSwipeCommitting]
+    [handleQuizAnswer, isSubmittingQuizAnswer, isSwipeCommitting],
   );
 
   useEffect(() => {
@@ -405,13 +409,18 @@ export function VocabQuizContent() {
       if (!touch) return;
       touchStartRef.current = { x: touch.clientX, y: touch.clientY };
     },
-    [isRevealed, isSubmittingQuizAnswer, isSwipeCommitting]
+    [isRevealed, isSubmittingQuizAnswer, isSwipeCommitting],
   );
 
   const handleCardTouchMove = useCallback(
     (event: React.TouchEvent<HTMLDivElement>) => {
       const start = touchStartRef.current;
-      if (!start || !isRevealed || isSubmittingQuizAnswer || isSwipeCommitting) {
+      if (
+        !start ||
+        !isRevealed ||
+        isSubmittingQuizAnswer ||
+        isSwipeCommitting
+      ) {
         return;
       }
       const touch = event.changedTouches[0];
@@ -423,10 +432,13 @@ export function VocabQuizContent() {
       if (event.cancelable) {
         event.preventDefault();
       }
-      const clamped = Math.max(-SWIPE_MAX_OFFSET, Math.min(SWIPE_MAX_OFFSET, deltaX));
+      const clamped = Math.max(
+        -SWIPE_MAX_OFFSET,
+        Math.min(SWIPE_MAX_OFFSET, deltaX),
+      );
       setSwipeOffset(clamped);
     },
-    [isRevealed, isSubmittingQuizAnswer, isSwipeCommitting]
+    [isRevealed, isSubmittingQuizAnswer, isSwipeCommitting],
   );
 
   const handleCardTouchEnd = useCallback(() => {
@@ -511,7 +523,12 @@ export function VocabQuizContent() {
           <h2 className="font-semibold text-foreground text-base">Ordquiz</h2>
         </div>
         <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
-          <Button type="button" size="sm" variant="outline" onClick={() => void handleReturnToVocab()}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void handleReturnToVocab()}
+          >
             Til ordliste
           </Button>
         </motion.div>
@@ -523,7 +540,10 @@ export function VocabQuizContent() {
             <span>Fremdrift</span>
             <span>{quizProgressValue}%</span>
           </div>
-          <motion.div initial={{ scaleX: 0.95, opacity: 0.8 }} animate={{ scaleX: 1, opacity: 1 }}>
+          <motion.div
+            initial={{ scaleX: 0.95, opacity: 0.8 }}
+            animate={{ scaleX: 1, opacity: 1 }}
+          >
             <Progress value={quizProgressValue} className="h-2" />
           </motion.div>
         </div>
@@ -531,7 +551,14 @@ export function VocabQuizContent() {
 
       <AnimatePresence mode="wait">
         {quizMode === "loading" && (
-          <motion.div key="loading" variants={contentVariants} initial="initial" animate="animate" exit="exit" className="space-y-3">
+          <motion.div
+            key="loading"
+            variants={contentVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="space-y-3"
+          >
             <Skeleton className="h-2 w-full rounded-full" />
             <div className="rounded-xl border border-border bg-muted/20 p-5 md:p-7 space-y-4">
               <Skeleton className="h-8 w-1/2 mx-auto" />
@@ -559,7 +586,9 @@ export function VocabQuizContent() {
             className="rounded-xl border border-border bg-muted/20 p-8 text-center"
           >
             <BookOpen className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground mb-4">Ingen ord å repetere nå.</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              Ingen ord å repetere nå.
+            </p>
             <Button type="button" variant="outline" asChild>
               <Link href="/vocab">Gå til ordliste</Link>
             </Button>
@@ -600,101 +629,125 @@ export function VocabQuizContent() {
                   </div>
                 </div>
               )}
+              {!isRevealed && (
+                <button
+                  type="button"
+                  onClick={() => setIsRevealed(true)}
+                  className="absolute inset-0 z-20 md:hidden flex items-end justify-center pb-6 rounded-xl bg-background/25 backdrop-blur-[2px]"
+                  aria-label="Vis svar"
+                >
+                  <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs font-medium text-foreground shadow-sm">
+                    <Eye className="h-3.5 w-3.5" />
+                    Vis svar
+                  </span>
+                </button>
+              )}
               <motion.div
                 className="relative overflow-hidden rounded-xl border border-border bg-muted/20 p-5 md:p-7 min-h-[360px] md:min-h-0 text-center flex flex-col"
-              initial={{ scale: 0.99 }}
-              animate={{
-                x: isRevealed ? swipeOffset : 0,
-                rotate: isRevealed
-                  ? Math.max(
-                      -SWIPE_MAX_ROTATION,
-                      Math.min(SWIPE_MAX_ROTATION, swipeOffset / 12)
-                    )
-                  : 0,
-                scale: isSwipeCommitting ? 0.97 : 1,
-              }}
-              transition={{ type: "spring", stiffness: 300, damping: 28 }}
-              style={{ touchAction: isRevealed ? "pan-y" : "auto" }}
-              onTouchStart={handleCardTouchStart}
-              onTouchMove={handleCardTouchMove}
-              onTouchEnd={handleCardTouchEnd}
-              onTouchCancel={handleCardTouchEnd}
-            >
-              <p className="text-2xl md:text-3xl font-semibold text-foreground break-words">{currentQuizCard.term}</p>
+                initial={{ scale: 0.99 }}
+                animate={{
+                  x: isRevealed ? swipeOffset : 0,
+                  rotate: isRevealed
+                    ? Math.max(
+                        -SWIPE_MAX_ROTATION,
+                        Math.min(SWIPE_MAX_ROTATION, swipeOffset / 12),
+                      )
+                    : 0,
+                  scale: isSwipeCommitting ? 0.97 : 1,
+                }}
+                transition={{ type: "spring", stiffness: 300, damping: 28 }}
+                style={{ touchAction: isRevealed ? "pan-y" : "auto" }}
+                onTouchStart={handleCardTouchStart}
+                onTouchMove={handleCardTouchMove}
+                onTouchEnd={handleCardTouchEnd}
+                onTouchCancel={handleCardTouchEnd}
+              >
+                <p className="relative z-30 pointer-events-none text-2xl md:text-3xl font-semibold text-foreground break-words">
+                  {currentQuizCard.term}
+                </p>
 
-              <div className="mt-4 flex-1 flex items-center">
-                <div className="w-full">
-                  <div className="hidden md:block">
-                    <AnimatePresence mode="wait">
-                      {isRevealed ? (
-                        <motion.div
-                          key="revealed-desktop"
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -4 }}
-                          className="space-y-2"
-                        >
-                          {currentQuizCard.explanation ? (
-                            <p className="text-sm text-muted-foreground">{currentQuizCard.explanation}</p>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">Ingen forklaring lagret.</p>
-                          )}
-                          {currentQuizCard.example_sentence && (
-                            <p className="text-sm italic text-muted-foreground">{currentQuizCard.example_sentence}</p>
-                          )}
-                        </motion.div>
-                      ) : (
-                        <motion.p
-                          key="hidden-desktop"
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -4 }}
-                          className="text-sm text-muted-foreground"
-                        >
-                          Prøv å huske betydningen, og vis så svaret.
-                        </motion.p>
-                      )}
-                    </AnimatePresence>
-                  </div>
-
-                  <div className="relative md:hidden">
-                    <div
-                      className={`space-y-2 transition-[filter,opacity] duration-200 ${
-                        isRevealed ? "blur-0 opacity-100" : "blur-md opacity-80"
-                      }`}
-                      aria-hidden={!isRevealed}
-                    >
-                      {currentQuizCard.explanation ? (
-                        <p className="text-sm text-muted-foreground">{currentQuizCard.explanation}</p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Ingen forklaring lagret.</p>
-                      )}
-                      {currentQuizCard.example_sentence && (
-                        <p className="text-sm italic text-muted-foreground">{currentQuizCard.example_sentence}</p>
-                      )}
+                <div className="mt-4 flex-1 flex items-center">
+                  <div className="w-full">
+                    <div className="hidden md:block">
+                      <AnimatePresence mode="wait">
+                        {isRevealed ? (
+                          <motion.div
+                            key="revealed-desktop"
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            className="space-y-2"
+                          >
+                            {currentQuizCard.explanation ? (
+                              <p className="text-sm text-muted-foreground">
+                                {currentQuizCard.explanation}
+                              </p>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">
+                                Ingen forklaring lagret.
+                              </p>
+                            )}
+                            {currentQuizCard.example_sentence && (
+                              <p className="text-sm italic text-muted-foreground">
+                                {currentQuizCard.example_sentence}
+                              </p>
+                            )}
+                          </motion.div>
+                        ) : (
+                          <motion.p
+                            key="hidden-desktop"
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            className="text-sm text-muted-foreground"
+                          >
+                            Prøv å huske betydningen, og vis så svaret.
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
                     </div>
-                    {!isRevealed && (
-                      <button
-                        type="button"
-                        onClick={() => setIsRevealed(true)}
-                        className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-background/45 backdrop-blur-[2px]"
-                        aria-label="Vis svar"
+
+                    <div className="relative md:hidden">
+                      <div
+                        className={`space-y-2 transition-[filter,opacity] duration-200 ${
+                          isRevealed
+                            ? "blur-0 opacity-100"
+                            : "blur-md opacity-80"
+                        }`}
+                        aria-hidden={!isRevealed}
                       >
-                        <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs font-medium text-foreground shadow-sm">
-                          <Eye className="h-3.5 w-3.5" />
-                          Vis svar
-                        </span>
-                      </button>
-                    )}
+                        {currentQuizCard.explanation ? (
+                          <p className="text-sm text-muted-foreground">
+                            {currentQuizCard.explanation}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Ingen forklaring lagret.
+                          </p>
+                        )}
+                        {currentQuizCard.example_sentence && (
+                          <p className="text-sm italic text-muted-foreground">
+                            {currentQuizCard.example_sentence}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
               </motion.div>
             </div>
 
             {!isRevealed ? (
-              <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }} className="hidden md:block">
-                <Button type="button" className="w-full" onClick={() => setIsRevealed(true)}>
+              <motion.div
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.99 }}
+                className="hidden md:block"
+              >
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={() => setIsRevealed(true)}
+                >
                   <Eye className="h-4 w-4 mr-2" />
                   Vis svar (Space)
                 </Button>
@@ -740,29 +793,62 @@ export function VocabQuizContent() {
             </p>
 
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">Besvart: {quizStats.answered}</span>
-              <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">Vet: {quizStats.knew}</span>
-              <span className="text-xs px-2 py-1 rounded-full bg-destructive/10 text-destructive">Vet ikke: {quizStats.didntKnow}</span>
-              <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">Igjen: {quizQueue.length}</span>
+              <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
+                Besvart: {quizStats.answered}
+              </span>
+              <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
+                Vet: {quizStats.knew}
+              </span>
+              <span className="text-xs px-2 py-1 rounded-full bg-destructive/10 text-destructive">
+                Vet ikke: {quizStats.didntKnow}
+              </span>
+              <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
+                Igjen: {quizQueue.length}
+              </span>
             </div>
           </motion.div>
         )}
 
         {quizMode === "completed" && (
-          <motion.div key="completed" variants={contentVariants} initial="initial" animate="animate" exit="exit" className="space-y-3">
+          <motion.div
+            key="completed"
+            variants={contentVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="space-y-3"
+          >
             <div className="rounded-xl border border-border bg-muted/20 p-5 md:p-6">
-              <p className="text-sm text-muted-foreground">Du er ferdig med runden.</p>
-              <p className="text-lg font-semibold text-foreground mt-1">{quizStats.knew} visste, {quizStats.didntKnow} usikre</p>
-              <p className="text-xs text-muted-foreground mt-2">Totalt besvart: {quizStats.answered}</p>
+              <p className="text-sm text-muted-foreground">
+                Du er ferdig med runden.
+              </p>
+              <p className="text-lg font-semibold text-foreground mt-1">
+                {quizStats.knew} visste, {quizStats.didntKnow} usikre
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Totalt besvart: {quizStats.answered}
+              </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
-                <Button type="button" className="w-full" onClick={() => void startQuiz()} disabled={isStartingQuiz}>
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={() => void startQuiz()}
+                  disabled={isStartingQuiz}
+                >
                   {isStartingQuiz ? "Starter..." : "Start ny quiz"}
                 </Button>
               </motion.div>
               <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
-                <Button type="button" className="w-full" variant="outline" onClick={() => void handleReturnToVocab()}>Tilbake til ordliste</Button>
+                <Button
+                  type="button"
+                  className="w-full"
+                  variant="outline"
+                  onClick={() => void handleReturnToVocab()}
+                >
+                  Tilbake til ordliste
+                </Button>
               </motion.div>
             </div>
           </motion.div>
