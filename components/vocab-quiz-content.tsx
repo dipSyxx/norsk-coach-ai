@@ -8,6 +8,7 @@ import { BookOpen, Eye, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MASTERED_STRENGTH } from "@/lib/vocab-thresholds";
 import { toast } from "sonner";
 import { AnimatePresence, motion, type Variants } from "motion/react";
 
@@ -18,6 +19,8 @@ interface VocabItem {
   term: string;
   explanation: string | null;
   example_sentence: string | null;
+  strength: number;
+  next_review_at: string | null;
 }
 
 interface QuizQueueItem {
@@ -66,6 +69,12 @@ function shuffleItems<T>(items: T[]): T[] {
   return shuffled;
 }
 
+function getReviewAtMs(nextReviewAt: string | null): number {
+  if (!nextReviewAt) return Number.POSITIVE_INFINITY;
+  const parsed = Date.parse(nextReviewAt);
+  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+}
+
 export function VocabQuizContent() {
   const router = useRouter();
   const startLockRef = useRef(false);
@@ -91,10 +100,10 @@ export function VocabQuizContent() {
 
   const refreshVocabCaches = useCallback(async () => {
     await Promise.all([
-      mutate("/api/vocab?filter=all"),
-      mutate("/api/vocab?filter=new"),
-      mutate("/api/vocab?filter=due"),
-      mutate("/api/vocab?filter=mastered"),
+      mutate("/api/vocab?filter=all&kind=lexical"),
+      mutate("/api/vocab?filter=new&kind=lexical"),
+      mutate("/api/vocab?filter=due&kind=lexical"),
+      mutate("/api/vocab?filter=mastered&kind=lexical"),
     ]);
   }, []);
 
@@ -160,15 +169,19 @@ export function VocabQuizContent() {
     setQuizMode("loading");
 
     try {
-      const res = await fetch("/api/vocab?filter=all");
+      const res = await fetch("/api/vocab?filter=all&kind=lexical");
       if (!res.ok) {
         throw new Error("Failed to load vocab");
       }
 
       const payload = (await res.json()) as { items?: VocabItem[] };
       const allItems = payload.items ?? [];
+      const eligibleItems = allItems.filter(
+        (item) => item.strength < MASTERED_STRENGTH
+      );
 
-      if (allItems.length === 0) {
+      if (eligibleItems.length === 0) {
+        toast.info("Ingen ord aa repetere naa.");
         setQuizQueue([]);
         setQuizStats(createEmptyQuizStats());
         setIsRevealed(false);
@@ -179,8 +192,24 @@ export function VocabQuizContent() {
         return;
       }
 
-      const selectedItems = shuffleItems(allItems)
-        .slice(0, QUIZ_SESSION_SIZE)
+      const now = Date.now();
+      const dueItems = eligibleItems.filter(
+        (item) => getReviewAtMs(item.next_review_at) <= now
+      );
+      const nonDueItems = eligibleItems.filter(
+        (item) => getReviewAtMs(item.next_review_at) > now
+      );
+
+      const dueFirst = [...dueItems]
+        .sort(
+          (a, b) =>
+            getReviewAtMs(a.next_review_at) - getReviewAtMs(b.next_review_at)
+        )
+        .slice(0, QUIZ_SESSION_SIZE);
+      const remainingSlots = Math.max(0, QUIZ_SESSION_SIZE - dueFirst.length);
+      const randomBackfill = shuffleItems(nonDueItems).slice(0, remainingSlots);
+
+      const selectedItems = [...dueFirst, ...randomBackfill]
         .map((item) => ({
           itemId: item.id,
           term: item.term,
@@ -370,7 +399,7 @@ export function VocabQuizContent() {
             className="rounded-xl border border-border bg-muted/20 p-8 text-center"
           >
             <BookOpen className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground mb-4">Ingen ord i ordforrådet ennå.</p>
+            <p className="text-sm text-muted-foreground mb-4">Ingen ord å repetere nå.</p>
             <Button type="button" variant="outline" asChild>
               <Link href="/vocab">Gå til ordliste</Link>
             </Button>

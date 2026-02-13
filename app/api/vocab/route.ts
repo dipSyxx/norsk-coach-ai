@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { prepareVocabTerm } from "@/lib/vocab-normalization";
 import { computeNextReviewAtFromStrength } from "@/lib/srs";
+import { MASTERED_STRENGTH } from "@/lib/vocab-thresholds";
 import { mergeVocabKinds } from "@/lib/vocab-taxonomy";
 import {
   nullIfBlank,
@@ -39,7 +40,7 @@ export async function GET(req: Request) {
       });
     } else if (filter === "mastered") {
       items = await prisma.vocabItem.findMany({
-        where: { ...baseWhere, strength: { gte: 4 } },
+        where: { ...baseWhere, strength: { gte: MASTERED_STRENGTH } },
         orderBy: { createdAt: "desc" },
       });
     } else if (filter === "new") {

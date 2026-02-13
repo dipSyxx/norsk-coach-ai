@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureAnalyticsMaintenanceRun } from "@/lib/analytics/maintenance";
 import { getDashboardLearningMetrics } from "@/lib/analytics/service";
+import { MASTERED_STRENGTH } from "@/lib/vocab-thresholds";
 
 export async function GET() {
   try {
@@ -44,7 +45,7 @@ export async function GET() {
         where: { userId: user.id, createdAt: { gte: sevenDaysAgo } },
       }),
       prisma.vocabItem.count({
-        where: { userId: user.id, strength: { gte: 4 } },
+        where: { userId: user.id, strength: { gte: MASTERED_STRENGTH } },
       }),
       prisma.vocabItem.count({
         where: {
