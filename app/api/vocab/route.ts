@@ -23,6 +23,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const filter = url.searchParams.get("filter") || "all";
     const kindParam = url.searchParams.get("kind");
+    const includeRisk = url.searchParams.get("includeRisk") === "1";
     const kindFilter = kindParam === "grammar" ? "grammar" : "lexical";
 
     const baseWhere = {
@@ -55,6 +56,25 @@ export async function GET(req: Request) {
       });
     }
 
+    const recentMissesByItemId = new Map<string, number>();
+    if (includeRisk && items.length > 0) {
+      const lookbackDate = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+      const missRows = await prisma.quizRunAnswer.groupBy({
+        by: ["vocabItemId"],
+        where: {
+          userId: user.id,
+          knew: false,
+          answeredAt: { gte: lookbackDate },
+          vocabItemId: { in: items.map((item) => item.id) },
+        },
+        _count: { _all: true },
+      });
+
+      for (const row of missRows) {
+        recentMissesByItemId.set(row.vocabItemId, row._count._all);
+      }
+    }
+
     const mapped = items.map((i) => ({
       id: i.id,
       term: i.term,
@@ -66,6 +86,7 @@ export async function GET(req: Request) {
       created_at: i.createdAt,
       kind: i.kind,
       source: i.source,
+      recent_miss_count: recentMissesByItemId.get(i.id) ?? 0,
     }));
 
     return NextResponse.json({ items: mapped });

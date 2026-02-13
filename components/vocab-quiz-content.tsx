@@ -21,6 +21,7 @@ interface VocabItem {
   example_sentence: string | null;
   strength: number;
   next_review_at: string | null;
+  recent_miss_count?: number;
 }
 
 interface QuizQueueItem {
@@ -39,6 +40,12 @@ interface QuizStats {
 
 const QUIZ_SESSION_SIZE = 10;
 const QUIZ_MAX_REPEAT = 2;
+const QUIZ_REQUEUE_MIN_GAP = 2;
+const QUIZ_REQUEUE_MAX_GAP = 3;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const OVERDUE_WEIGHT = 3;
+const STRENGTH_WEIGHT = 2;
+const MISS_WEIGHT = 4;
 
 const contentVariants: Variants = {
   initial: { opacity: 0, y: 14, filter: "blur(4px)" },
@@ -73,6 +80,29 @@ function getReviewAtMs(nextReviewAt: string | null): number {
   if (!nextReviewAt) return Number.POSITIVE_INFINITY;
   const parsed = Date.parse(nextReviewAt);
   return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+}
+
+function getRiskScore(item: VocabItem, nowMs: number): number {
+  const reviewAtMs = getReviewAtMs(item.next_review_at);
+  const overdueDays = Number.isFinite(reviewAtMs)
+    ? Math.max(0, (nowMs - reviewAtMs) / DAY_MS)
+    : 0;
+  const lowStrengthPenalty = Math.max(0, MASTERED_STRENGTH - 1 - item.strength);
+  const recentMisses = item.recent_miss_count ?? 0;
+
+  return (
+    overdueDays * OVERDUE_WEIGHT +
+    lowStrengthPenalty * STRENGTH_WEIGHT +
+    recentMisses * MISS_WEIGHT
+  );
+}
+
+function getRequeueInsertIndex(queueLength: number): number {
+  if (queueLength <= 0) return 0;
+  const desiredGap =
+    QUIZ_REQUEUE_MIN_GAP +
+    Math.floor(Math.random() * (QUIZ_REQUEUE_MAX_GAP - QUIZ_REQUEUE_MIN_GAP + 1));
+  return Math.min(queueLength, desiredGap);
 }
 
 export function VocabQuizContent() {
@@ -169,7 +199,7 @@ export function VocabQuizContent() {
     setQuizMode("loading");
 
     try {
-      const res = await fetch("/api/vocab?filter=all&kind=lexical");
+      const res = await fetch("/api/vocab?filter=all&kind=lexical&includeRisk=1");
       if (!res.ok) {
         throw new Error("Failed to load vocab");
       }
@@ -193,23 +223,9 @@ export function VocabQuizContent() {
       }
 
       const now = Date.now();
-      const dueItems = eligibleItems.filter(
-        (item) => getReviewAtMs(item.next_review_at) <= now
-      );
-      const nonDueItems = eligibleItems.filter(
-        (item) => getReviewAtMs(item.next_review_at) > now
-      );
-
-      const dueFirst = [...dueItems]
-        .sort(
-          (a, b) =>
-            getReviewAtMs(a.next_review_at) - getReviewAtMs(b.next_review_at)
-        )
-        .slice(0, QUIZ_SESSION_SIZE);
-      const remainingSlots = Math.max(0, QUIZ_SESSION_SIZE - dueFirst.length);
-      const randomBackfill = shuffleItems(nonDueItems).slice(0, remainingSlots);
-
-      const selectedItems = [...dueFirst, ...randomBackfill]
+      const selectedItems = shuffleItems(eligibleItems)
+        .sort((a, b) => getRiskScore(b, now) - getRiskScore(a, now))
+        .slice(0, QUIZ_SESSION_SIZE)
         .map((item) => ({
           itemId: item.id,
           term: item.term,
@@ -280,57 +296,107 @@ export function VocabQuizContent() {
     };
   }, [quizMode, quizRunId, quizStartedAtMs]);
 
-  async function handleQuizAnswer(knew: boolean) {
-    if (!currentQuizCard || isSubmittingQuizAnswer) return;
+  const handleQuizAnswer = useCallback(
+    async (knew: boolean) => {
+      if (!currentQuizCard || isSubmittingQuizAnswer) return;
 
-    setIsSubmittingQuizAnswer(true);
-    try {
-      const res = await fetch("/api/vocab/review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          itemId: currentQuizCard.itemId,
-          knew,
-          quizRunId,
-          attemptIndex: quizAttemptIndex,
-          repeatCount: currentQuizCard.repeatCount,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to save quiz answer");
-      }
-
-      const remaining = quizQueue.slice(1);
-      if (!knew && currentQuizCard.repeatCount < QUIZ_MAX_REPEAT) {
-        remaining.push({
-          ...currentQuizCard,
-          repeatCount: currentQuizCard.repeatCount + 1,
+      setIsSubmittingQuizAnswer(true);
+      try {
+        const res = await fetch("/api/vocab/review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            itemId: currentQuizCard.itemId,
+            knew,
+            quizRunId,
+            attemptIndex: quizAttemptIndex,
+            repeatCount: currentQuizCard.repeatCount,
+          }),
         });
-      }
 
-      setQuizQueue(remaining);
-      setQuizStats((prev) => ({
-        answered: prev.answered + 1,
-        knew: prev.knew + (knew ? 1 : 0),
-        didntKnow: prev.didntKnow + (knew ? 0 : 1),
-      }));
-      setQuizAttemptIndex((prev) => prev + 1);
-      setIsRevealed(false);
-
-      if (remaining.length === 0) {
-        const completed = await completeQuizRun();
-        if (!completed) {
-          toast.error("Kunne ikke lagre quiz-resultatet.");
+        if (!res.ok) {
+          throw new Error("Failed to save quiz answer");
         }
-        setQuizMode("completed");
-      }
-    } catch {
-      toast.error("Kunne ikke oppdatere ordet. Prøv igjen.");
-    } finally {
+
+        const remaining = quizQueue.slice(1);
+        if (!knew && currentQuizCard.repeatCount < QUIZ_MAX_REPEAT) {
+          const queuedAgain = {
+            ...currentQuizCard,
+            repeatCount: currentQuizCard.repeatCount + 1,
+          };
+          const insertIndex = getRequeueInsertIndex(remaining.length);
+          remaining.splice(insertIndex, 0, queuedAgain);
+        }
+
+        setQuizQueue(remaining);
+        setQuizStats((prev) => ({
+          answered: prev.answered + 1,
+          knew: prev.knew + (knew ? 1 : 0),
+          didntKnow: prev.didntKnow + (knew ? 0 : 1),
+        }));
+        setQuizAttemptIndex((prev) => prev + 1);
+        setIsRevealed(false);
+
+        if (remaining.length === 0) {
+          const completed = await completeQuizRun();
+          if (!completed) {
+            toast.error("Kunne ikke lagre quiz-resultatet.");
+          }
+          setQuizMode("completed");
+        }
+      } catch {
+        toast.error("Kunne ikke oppdatere ordet. Proev igjen.");
+      } finally {
       setIsSubmittingQuizAnswer(false);
-    }
-  }
+      }
+    },
+    [
+      completeQuizRun,
+      currentQuizCard,
+      isSubmittingQuizAnswer,
+      quizAttemptIndex,
+      quizQueue,
+      quizRunId,
+    ]
+  );
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (quizMode !== "running" || isSubmittingQuizAnswer) return;
+
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      if (
+        target?.isContentEditable ||
+        tagName === "INPUT" ||
+        tagName === "TEXTAREA" ||
+        tagName === "SELECT"
+      ) {
+        return;
+      }
+
+      if (event.code === "Space") {
+        event.preventDefault();
+        if (!isRevealed) {
+          setIsRevealed(true);
+        }
+        return;
+      }
+
+      if (!isRevealed) return;
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        void handleQuizAnswer(false);
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        void handleQuizAnswer(true);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleQuizAnswer, isRevealed, isSubmittingQuizAnswer, quizMode]);
 
   return (
     <motion.div
@@ -407,7 +473,14 @@ export function VocabQuizContent() {
         )}
 
         {quizMode === "running" && currentQuizCard && (
-          <motion.div key={`running-${currentQuizCard.itemId}`} variants={contentVariants} initial="initial" animate="animate" exit="exit" className="space-y-4">
+          <motion.div
+            key={`running-${currentQuizCard.itemId}`}
+            variants={contentVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="space-y-4"
+          >
             <motion.div
               className="rounded-xl border border-border bg-muted/20 p-5 md:p-7 text-center"
               initial={{ scale: 0.99 }}
@@ -441,7 +514,7 @@ export function VocabQuizContent() {
                 <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }} className="sm:col-span-2">
                   <Button type="button" className="w-full" onClick={() => setIsRevealed(true)}>
                     <Eye className="h-4 w-4 mr-2" />
-                    Vis svar
+                    Vis svar (Space)
                   </Button>
                 </motion.div>
               ) : (
@@ -472,6 +545,9 @@ export function VocabQuizContent() {
                 </>
               )}
             </div>
+            <p className="text-[11px] text-muted-foreground">
+              Space: vis svar. Piltast venstre/hoyre: svar.
+            </p>
 
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">Besvart: {quizStats.answered}</span>
