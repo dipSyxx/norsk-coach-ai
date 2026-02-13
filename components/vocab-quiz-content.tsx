@@ -42,6 +42,11 @@ const QUIZ_SESSION_SIZE = 10;
 const QUIZ_MAX_REPEAT = 2;
 const QUIZ_REQUEUE_MIN_GAP = 2;
 const QUIZ_REQUEUE_MAX_GAP = 3;
+const SWIPE_PARTIAL_THRESHOLD = 24;
+const SWIPE_COMMIT_THRESHOLD = 78;
+const SWIPE_MAX_OFFSET = 160;
+const SWIPE_EXIT_OFFSET = 360;
+const SWIPE_MAX_ROTATION = 12;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const OVERDUE_WEIGHT = 3;
 const STRENGTH_WEIGHT = 2;
@@ -108,6 +113,7 @@ function getRequeueInsertIndex(queueLength: number): number {
 export function VocabQuizContent() {
   const router = useRouter();
   const startLockRef = useRef(false);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const [quizMode, setQuizMode] = useState<QuizMode>("loading");
   const [quizQueue, setQuizQueue] = useState<QuizQueueItem[]>([]);
@@ -118,6 +124,8 @@ export function VocabQuizContent() {
   const [quizRunId, setQuizRunId] = useState<string | null>(null);
   const [quizAttemptIndex, setQuizAttemptIndex] = useState(1);
   const [quizStartedAtMs, setQuizStartedAtMs] = useState<number | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isSwipeCommitting, setIsSwipeCommitting] = useState(false);
 
   const currentQuizCard = quizQueue[0] ?? null;
   const quizProgressTotal = quizStats.answered + quizQueue.length;
@@ -127,6 +135,18 @@ export function VocabQuizContent() {
       : quizMode === "completed"
         ? 100
         : 0;
+  const swipeStrength = Math.min(
+    1,
+    Math.abs(swipeOffset) / SWIPE_COMMIT_THRESHOLD
+  );
+  const leftOverlayOpacity =
+    swipeOffset < -SWIPE_PARTIAL_THRESHOLD
+      ? Math.min(0.2 + swipeStrength * 0.7, 0.95)
+      : 0;
+  const rightOverlayOpacity =
+    swipeOffset > SWIPE_PARTIAL_THRESHOLD
+      ? Math.min(0.2 + swipeStrength * 0.7, 0.95)
+      : 0;
 
   const refreshVocabCaches = useCallback(async () => {
     await Promise.all([
@@ -211,7 +231,7 @@ export function VocabQuizContent() {
       );
 
       if (eligibleItems.length === 0) {
-        toast.info("Ingen ord aa repetere naa.");
+        toast.info("Ingen ord å repetere nå.");
         setQuizQueue([]);
         setQuizStats(createEmptyQuizStats());
         setIsRevealed(false);
@@ -345,9 +365,9 @@ export function VocabQuizContent() {
           setQuizMode("completed");
         }
       } catch {
-        toast.error("Kunne ikke oppdatere ordet. Proev igjen.");
+        toast.error("Kunne ikke oppdatere ordet. Prøv igjen.");
       } finally {
-      setIsSubmittingQuizAnswer(false);
+        setIsSubmittingQuizAnswer(false);
       }
     },
     [
@@ -359,6 +379,80 @@ export function VocabQuizContent() {
       quizRunId,
     ]
   );
+
+  const commitSwipeAnswer = useCallback(
+    async (knew: boolean, direction: -1 | 1) => {
+      if (isSwipeCommitting || isSubmittingQuizAnswer) return;
+      setIsSwipeCommitting(true);
+      setSwipeOffset(direction * SWIPE_EXIT_OFFSET);
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      await handleQuizAnswer(knew);
+      setSwipeOffset(0);
+      setIsSwipeCommitting(false);
+    },
+    [handleQuizAnswer, isSubmittingQuizAnswer, isSwipeCommitting]
+  );
+
+  useEffect(() => {
+    setSwipeOffset(0);
+    setIsSwipeCommitting(false);
+  }, [currentQuizCard?.itemId, isRevealed]);
+
+  const handleCardTouchStart = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      if (!isRevealed || isSubmittingQuizAnswer || isSwipeCommitting) return;
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+      touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    },
+    [isRevealed, isSubmittingQuizAnswer, isSwipeCommitting]
+  );
+
+  const handleCardTouchMove = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      const start = touchStartRef.current;
+      if (!start || !isRevealed || isSubmittingQuizAnswer || isSwipeCommitting) {
+        return;
+      }
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+
+      const deltaX = touch.clientX - start.x;
+      const deltaY = touch.clientY - start.y;
+      if (Math.abs(deltaX) <= Math.abs(deltaY)) return;
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      const clamped = Math.max(-SWIPE_MAX_OFFSET, Math.min(SWIPE_MAX_OFFSET, deltaX));
+      setSwipeOffset(clamped);
+    },
+    [isRevealed, isSubmittingQuizAnswer, isSwipeCommitting]
+  );
+
+  const handleCardTouchEnd = useCallback(() => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start || !isRevealed || isSubmittingQuizAnswer || isSwipeCommitting) {
+      setSwipeOffset(0);
+      return;
+    }
+
+    if (swipeOffset <= -SWIPE_COMMIT_THRESHOLD) {
+      void commitSwipeAnswer(false, -1);
+      return;
+    }
+    if (swipeOffset >= SWIPE_COMMIT_THRESHOLD) {
+      void commitSwipeAnswer(true, 1);
+      return;
+    }
+    setSwipeOffset(0);
+  }, [
+    commitSwipeAnswer,
+    isRevealed,
+    isSubmittingQuizAnswer,
+    isSwipeCommitting,
+    swipeOffset,
+  ]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -481,72 +575,168 @@ export function VocabQuizContent() {
             exit="exit"
             className="space-y-4"
           >
-            <motion.div
-              className="rounded-xl border border-border bg-muted/20 p-5 md:p-7 text-center"
+            <div className="relative">
+              {isRevealed && (
+                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-between px-3 md:hidden">
+                  <div
+                    className="rounded-full px-3 py-1 text-xs font-medium bg-destructive/10 text-destructive border border-destructive/20 transition-all duration-150"
+                    style={{
+                      opacity: leftOverlayOpacity,
+                      filter: `blur(${Math.max(0, 5 - swipeStrength * 5)}px)`,
+                      transform: `scale(${0.95 + swipeStrength * 0.08})`,
+                    }}
+                  >
+                    Ikke sikker
+                  </div>
+                  <div
+                    className="rounded-full px-3 py-1 text-xs font-medium bg-primary/10 text-primary border border-primary/20 transition-all duration-150"
+                    style={{
+                      opacity: rightOverlayOpacity,
+                      filter: `blur(${Math.max(0, 5 - swipeStrength * 5)}px)`,
+                      transform: `scale(${0.95 + swipeStrength * 0.08})`,
+                    }}
+                  >
+                    Jeg vet det
+                  </div>
+                </div>
+              )}
+              <motion.div
+                className="relative overflow-hidden rounded-xl border border-border bg-muted/20 p-5 md:p-7 min-h-[360px] md:min-h-0 text-center flex flex-col"
               initial={{ scale: 0.99 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 260, damping: 22 }}
+              animate={{
+                x: isRevealed ? swipeOffset : 0,
+                rotate: isRevealed
+                  ? Math.max(
+                      -SWIPE_MAX_ROTATION,
+                      Math.min(SWIPE_MAX_ROTATION, swipeOffset / 12)
+                    )
+                  : 0,
+                scale: isSwipeCommitting ? 0.97 : 1,
+              }}
+              transition={{ type: "spring", stiffness: 300, damping: 28 }}
+              style={{ touchAction: isRevealed ? "pan-y" : "auto" }}
+              onTouchStart={handleCardTouchStart}
+              onTouchMove={handleCardTouchMove}
+              onTouchEnd={handleCardTouchEnd}
+              onTouchCancel={handleCardTouchEnd}
             >
               <p className="text-2xl md:text-3xl font-semibold text-foreground break-words">{currentQuizCard.term}</p>
 
-              <AnimatePresence mode="wait">
-                {isRevealed ? (
-                  <motion.div key="revealed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="mt-4 space-y-2">
-                    {currentQuizCard.explanation ? (
-                      <p className="text-sm text-muted-foreground">{currentQuizCard.explanation}</p>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Ingen forklaring lagret.</p>
-                    )}
-                    {currentQuizCard.example_sentence && (
-                      <p className="text-sm italic text-muted-foreground">{currentQuizCard.example_sentence}</p>
-                    )}
-                  </motion.div>
-                ) : (
-                  <motion.p key="hidden" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="mt-4 text-sm text-muted-foreground">
-                    Prøv å huske betydningen, og vis så svaret.
-                  </motion.p>
-                )}
-              </AnimatePresence>
-            </motion.div>
+              <div className="mt-4 flex-1 flex items-center">
+                <div className="w-full">
+                  <div className="hidden md:block">
+                    <AnimatePresence mode="wait">
+                      {isRevealed ? (
+                        <motion.div
+                          key="revealed-desktop"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          className="space-y-2"
+                        >
+                          {currentQuizCard.explanation ? (
+                            <p className="text-sm text-muted-foreground">{currentQuizCard.explanation}</p>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Ingen forklaring lagret.</p>
+                          )}
+                          {currentQuizCard.example_sentence && (
+                            <p className="text-sm italic text-muted-foreground">{currentQuizCard.example_sentence}</p>
+                          )}
+                        </motion.div>
+                      ) : (
+                        <motion.p
+                          key="hidden-desktop"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          className="text-sm text-muted-foreground"
+                        >
+                          Prøv å huske betydningen, og vis så svaret.
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {!isRevealed ? (
-                <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }} className="sm:col-span-2">
-                  <Button type="button" className="w-full" onClick={() => setIsRevealed(true)}>
-                    <Eye className="h-4 w-4 mr-2" />
-                    Vis svar (Space)
+                  <div className="relative md:hidden">
+                    <div
+                      className={`space-y-2 transition-[filter,opacity] duration-200 ${
+                        isRevealed ? "blur-0 opacity-100" : "blur-md opacity-80"
+                      }`}
+                      aria-hidden={!isRevealed}
+                    >
+                      {currentQuizCard.explanation ? (
+                        <p className="text-sm text-muted-foreground">{currentQuizCard.explanation}</p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Ingen forklaring lagret.</p>
+                      )}
+                      {currentQuizCard.example_sentence && (
+                        <p className="text-sm italic text-muted-foreground">{currentQuizCard.example_sentence}</p>
+                      )}
+                    </div>
+                    {!isRevealed && (
+                      <button
+                        type="button"
+                        onClick={() => setIsRevealed(true)}
+                        className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-background/45 backdrop-blur-[2px]"
+                        aria-label="Vis svar"
+                      >
+                        <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs font-medium text-foreground shadow-sm">
+                          <Eye className="h-3.5 w-3.5" />
+                          Vis svar
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              </motion.div>
+            </div>
+
+            {!isRevealed ? (
+              <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }} className="hidden md:block">
+                <Button type="button" className="w-full" onClick={() => setIsRevealed(true)}>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Vis svar (Space)
+                </Button>
+              </motion.div>
+            ) : (
+              <div className="hidden md:grid grid-cols-2 gap-2">
+                <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full border-destructive/30 text-destructive hover:bg-destructive/10"
+                    onClick={() => void handleQuizAnswer(false)}
+                    disabled={isSubmittingQuizAnswer}
+                  >
+                    <ThumbsDown className="h-4 w-4 mr-2" />
+                    Ikke sikker
                   </Button>
                 </motion.div>
-              ) : (
-                <>
-                  <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full border-destructive/30 text-destructive hover:bg-destructive/10"
-                      onClick={() => void handleQuizAnswer(false)}
-                      disabled={isSubmittingQuizAnswer}
-                    >
-                      <ThumbsDown className="h-4 w-4 mr-2" />
-                      Ikke sikker
-                    </Button>
-                  </motion.div>
-                  <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
-                    <Button
-                      type="button"
-                      className="w-full"
-                      onClick={() => void handleQuizAnswer(true)}
-                      disabled={isSubmittingQuizAnswer}
-                    >
-                      <ThumbsUp className="h-4 w-4 mr-2" />
-                      Jeg vet det
-                    </Button>
-                  </motion.div>
-                </>
-              )}
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Space: vis svar. Piltast venstre/hoyre: svar.
+                <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.99 }}>
+                  <Button
+                    type="button"
+                    className="w-full"
+                    onClick={() => void handleQuizAnswer(true)}
+                    disabled={isSubmittingQuizAnswer}
+                  >
+                    <ThumbsUp className="h-4 w-4 mr-2" />
+                    Jeg vet det
+                  </Button>
+                </motion.div>
+              </div>
+            )}
+            {isRevealed && (
+              <p className="text-[11px] text-muted-foreground md:hidden">
+                {swipeStrength >= 1
+                  ? "Slipp for å velge."
+                  : swipeStrength > 0
+                    ? "Fortsett å sveipe."
+                    : "Sveip venstre/høyre på kortet."}
+              </p>
+            )}
+            <p className="hidden md:block text-[11px] text-muted-foreground">
+              Space: vis svar. Piltast venstre/høyre: svar.
             </p>
 
             <div className="flex items-center gap-2 flex-wrap">
