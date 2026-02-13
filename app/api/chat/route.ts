@@ -1,11 +1,27 @@
-﻿import { createHash } from "crypto";
-import { generateText, streamText, Output } from "ai";
+import { createHash, randomUUID } from "crypto";
+import {
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  generateText,
+  Output,
+  streamText,
+  type FinishReason,
+} from "ai";
 import { openai } from "@ai-sdk/openai";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { buildSystemPrompt } from "@/lib/system-prompt";
+import {
+  buildSystemPrompt,
+  getCorrectionLabel,
+  getExplanationLabels,
+  type PromptTemplateId,
+} from "@/lib/system-prompt";
 import { extractionSchema } from "@/lib/extract-schema";
 import { isExplanationIntent } from "@/lib/explanation-intent";
+import {
+  auditLanguagePolicy,
+  type LanguagePolicyAuditResult,
+} from "@/lib/language-policy";
 import { computeNextReviewAtFromStrength } from "@/lib/srs";
 import {
   mergeVocabKinds,
@@ -40,7 +56,7 @@ const MODE_LABELS: Record<string, string> = {
   free_chat: "Fri samtale",
   rollespill: "Rollespill",
   rett_teksten: "Rett teksten",
-  ovelse: "Lag øvelse",
+  ovelse: "Lag ovelse",
   grammatikk: "Grammatikk",
 };
 
@@ -52,7 +68,7 @@ const EXPLANATION_LANG_INSTRUCTION: Record<string, string> = {
 
 const FALLBACK_BY_EXPLANATION_LANGUAGE: Record<string, string> = {
   norwegian:
-    "Jeg kan ikke svare på det innholdet. La oss holde oss til norskøving. Prøv med et ord, en setning eller et grammatikkspørsmål.",
+    "Jeg kan ikke svare pa det innholdet. La oss holde oss til norskoving. Prov med et ord, en setning eller et grammatikksporsmal.",
   ukrainian:
     "Я не можу відповісти на такий запит. Давай зосередимось на вивченні норвезької: напиши слово, речення або граматичне питання.",
   english:
@@ -63,7 +79,7 @@ const STOP_WORDS = new Set([
   "og",
   "eller",
   "i",
-  "på",
+  "pa",
   "til",
   "av",
   "for",
@@ -72,6 +88,9 @@ const STOP_WORDS = new Set([
   "den",
   "de",
 ]);
+
+type ModerationStatus = "ok" | "blocked" | "outage";
+type LanguagePolicyStatus = "pass" | "repaired" | "repair_failed" | "fallback";
 
 function getLastUserMessageText(rawMessages: unknown): string {
   const list = Array.isArray(rawMessages)
@@ -136,7 +155,7 @@ function hashContent(content: string): string {
 function logAssistantModerationTelemetry(params: {
   userId: string;
   sessionId: string;
-  status: "ok" | "blocked" | "outage";
+  status: ModerationStatus;
   reasonCategory?: string | null;
   contentHash: string;
 }) {
@@ -147,6 +166,25 @@ function logAssistantModerationTelemetry(params: {
     blockedAt: params.status === "ok" ? null : new Date().toISOString(),
     reasonCategory: params.reasonCategory ?? null,
     contentHash: params.contentHash,
+  });
+}
+
+function logLanguagePolicyTelemetry(params: {
+  userId: string;
+  sessionId: string;
+  status: LanguagePolicyStatus;
+  reasonCode?: string | null;
+  expectedTemplate: PromptTemplateId;
+  contentHash: string;
+}) {
+  console.info("language_policy_telemetry", {
+    userId: params.userId,
+    sessionId: params.sessionId,
+    languagePolicyStatus: params.status,
+    reasonCode: params.reasonCode ?? null,
+    expectedTemplate: params.expectedTemplate,
+    contentHash: params.contentHash,
+    recordedAt: new Date().toISOString(),
   });
 }
 
@@ -199,8 +237,8 @@ async function generateSessionTitle(params: {
 
   try {
     const { text } = await generateText({
-      model: openai("gpt-4.1-mini"),
-      prompt: `Create one short Norwegian Bokmål chat title (max 50 chars, no quotes).
+      model: openai("gpt-5.2"),
+      prompt: `Create one short Norwegian Bokmal chat title (max 50 chars, no quotes).
 
 Mode: ${modeLabel}
 Topic: ${params.topic || "(none)"}
@@ -234,7 +272,7 @@ function shouldKeepExtractedTerm(params: {
   const prepared = prepareVocabTerm(params.rawTerm);
   if (!prepared) return false;
 
-  if (prepared.term !== "å" && prepared.term.length < 2) return false;
+  if (prepared.term !== "a" && prepared.term.length < 2) return false;
   if (!/\p{L}/u.test(prepared.term)) return false;
 
   const normalizedTerm = normalizeVocabTerm(prepared.term);
@@ -252,6 +290,188 @@ function shouldKeepExtractedTerm(params: {
   }
 
   return true;
+}
+
+function resolveExpectedTemplate(params: {
+  isExplanationRequest: boolean;
+  mode: string;
+}): PromptTemplateId {
+  if (params.isExplanationRequest) {
+    return "template_1";
+  }
+
+  if (params.mode === "grammatikk") {
+    return "template_2";
+  }
+
+  return "template_3";
+}
+
+function buildStrictExplanationOverride(params: {
+  isExplanationRequest: boolean;
+  explanationLanguage: string;
+}): string {
+  if (!params.isExplanationRequest) return "";
+
+  const explanationLanguageName =
+    EXPLANATION_LANGUAGE_NAME[params.explanationLanguage] ??
+    EXPLANATION_LANGUAGE_NAME.norwegian;
+
+  return `\n\nSTRICT OVERRIDE:\nThe user is asking for meaning/translation/explanation.\nYou MUST use TEMPLATE 1 exactly.\nAll explanatory prose and headings must be in ${explanationLanguageName}.\nNorwegian is allowed only for example sentences and the exercise prompt.`;
+}
+
+function buildTemplateDefinitionText(params: {
+  labels: ReturnType<typeof getExplanationLabels>;
+  correctionLabel: string;
+}): string {
+  const { labels, correctionLabel } = params;
+
+  return `Template 1 (meaning/explanation request):
+${labels.expl}:
+- ${labels.meaning}: <explanation language text>
+- ${labels.grammar}: <explanation language text (optional)>
+- ${labels.examples}:
+  1) <Norwegian example sentence>
+  2) <Norwegian example sentence>
+- ${labels.exercise}: <Norwegian micro-task line ending with a question mark.>
+
+Template 2 (grammar mode):
+${labels.grammar}:
+- ${labels.rule}: <explanation language text>
+- ${labels.commonMistake}: <explanation language text>
+- ${labels.examples}:
+  1) <Norwegian example sentence>
+- ${labels.exercise}: <Norwegian micro-task line ending with a question mark.>
+
+Template 3 (free chat/role-play):
+- 2-4 Norwegian sentences.
+- If correcting: "${correctionLabel}: [correct form] — [one-sentence explanation in explanation language]"
+- Optional note: "${labels.notes}: <one sentence>".`;
+}
+
+async function repairAssistantText(params: {
+  originalText: string;
+  explanationLanguage: string;
+  expectedTemplate: PromptTemplateId;
+  labels: ReturnType<typeof getExplanationLabels>;
+  correctionLabel: string;
+}): Promise<string | null> {
+  const languageName =
+    EXPLANATION_LANGUAGE_NAME[params.explanationLanguage] ??
+    EXPLANATION_LANGUAGE_NAME.norwegian;
+
+  const templateDefinitions = buildTemplateDefinitionText({
+    labels: params.labels,
+    correctionLabel: params.correctionLabel,
+  });
+
+  const prompt = `You are repairing a Norwegian tutor response that violated a language/template policy.
+
+Required explanation language: ${languageName}
+Required template: ${params.expectedTemplate}
+
+${templateDefinitions}
+
+Original response:
+${params.originalText}
+
+Rewrite the response now.
+Rules:
+- Keep user intent and learning value.
+- Keep explanatory prose/headings strictly in ${languageName}.
+- Norwegian is allowed only where templates allow it.
+- Return only the repaired response text.`;
+
+  try {
+    const { text } = await generateText({
+      model: openai("gpt-5.2"),
+      prompt,
+      maxRetries: 1,
+      temperature: 0.2,
+    });
+
+    const repaired = text.trim();
+    return repaired || null;
+  } catch {
+    return null;
+  }
+}
+
+async function persistAssistantFinalText(params: {
+  userId: string;
+  sessionId: string;
+  session: { title: string; mode: string; topic: string | null };
+  assistantText: string;
+  explanationLanguage: string;
+  userContentForExtraction: string;
+  allowExtraction: boolean;
+  prismaClient: PrismaClient;
+}) {
+  const { payload: encryptedAssistant, keyVersion: assistantKeyVersion } =
+    encrypt(params.assistantText);
+
+  await params.prismaClient.message.create({
+    data: {
+      sessionId: params.sessionId,
+      role: "assistant",
+      content: encryptedAssistant,
+      keyVersion: assistantKeyVersion,
+    },
+  });
+
+  const msgCount = await params.prismaClient.message.count({
+    where: { sessionId: params.sessionId },
+  });
+
+  if (shouldGenerateAiTitle(params.session.title, msgCount)) {
+    const firstUserRow = await params.prismaClient.message.findFirst({
+      where: { sessionId: params.sessionId, role: "user" },
+      orderBy: { createdAt: "asc" },
+      select: { content: true, keyVersion: true },
+    });
+
+    const firstUserText = firstUserRow
+      ? decrypt(firstUserRow.content, firstUserRow.keyVersion)
+      : "";
+
+    const aiTitle = await generateSessionTitle({
+      mode: params.session.mode,
+      topic: params.session.topic,
+      firstUserText,
+      assistantText: params.assistantText,
+    });
+
+    const nextTitle =
+      aiTitle ??
+      buildFallbackTitle(params.session.mode, params.session.topic, firstUserText);
+
+    await params.prismaClient.chatSession.update({
+      where: { id: params.sessionId },
+      data: { title: nextTitle, updatedAt: new Date() },
+    });
+  } else {
+    await params.prismaClient.chatSession.update({
+      where: { id: params.sessionId },
+      data: { updatedAt: new Date() },
+    });
+  }
+
+  if (!params.allowExtraction) {
+    return;
+  }
+
+  try {
+    await extractVocabAndMistakes(
+      params.userId,
+      params.sessionId,
+      params.assistantText,
+      params.userContentForExtraction,
+      params.explanationLanguage,
+      params.prismaClient,
+    );
+  } catch (error) {
+    console.error("Extract vocab/mistakes failed (non-critical):", error);
+  }
 }
 
 export async function POST(req: Request) {
@@ -282,8 +502,7 @@ export async function POST(req: Request) {
     if (!rateLimit.ok) {
       return new Response(
         JSON.stringify({
-          error:
-            "Too many messages. Please wait a moment before sending again.",
+          error: "Too many messages. Please wait a moment before sending again.",
         }),
         {
           status: 429,
@@ -341,7 +560,14 @@ export async function POST(req: Request) {
 
     const session = await prisma.chatSession.findFirst({
       where: { id: sessionId, userId: user.id },
+      select: {
+        id: true,
+        title: true,
+        mode: true,
+        topic: true,
+      },
     });
+
     if (!session) {
       return new Response("Session not found", { status: 404 });
     }
@@ -378,110 +604,235 @@ export async function POST(req: Request) {
       topic: session.topic ?? undefined,
     });
 
-    const strictExplanationOverride = isExplanationIntent(userContent)
-      ? `\n\nStrict instruction for this reply: the user is asking for meaning/translation/explanation. Write explanatory prose fully in ${EXPLANATION_LANGUAGE_NAME[user.explanation_language] ?? EXPLANATION_LANGUAGE_NAME.norwegian}. Keep explanatory text in one explanation language only.`
-      : "";
+    const isExplanationRequest = isExplanationIntent(userContent);
+    const expectedTemplate = resolveExpectedTemplate({
+      isExplanationRequest,
+      mode: session.mode,
+    });
+
+    const strictExplanationOverride = buildStrictExplanationOverride({
+      isExplanationRequest,
+      explanationLanguage: user.explanation_language,
+    });
 
     const systemPrompt = `${baseSystemPrompt}${strictExplanationOverride}`;
+    const labels = getExplanationLabels(user.explanation_language);
+    const correctionLabel = getCorrectionLabel(user.explanation_language);
 
-    const result = streamText({
-      model: openai("gpt-4.1-mini"),
+    const streamResult = streamText({
+      model: openai("gpt-5.2"),
       system: systemPrompt,
       messages: trimmedHistory,
       maxRetries: 2,
-      onFinish: async ({ text }) => {
-        const generatedAssistantText = (text || "").trim();
-        const finalText =
-          generatedAssistantText || safeFallbackText(user.explanation_language);
+    });
 
-        const assistantModeration = await isContentSafe(finalText);
-        const moderationStatus: "ok" | "blocked" | "outage" =
-          assistantModeration.safe
+    const assistantMessageId = randomUUID();
+    const assistantTextPartId = randomUUID();
+
+    const stream = createUIMessageStream({
+      execute: async ({ writer }) => {
+        writer.write({ type: "start", messageId: assistantMessageId });
+        writer.write({ type: "text-start", id: assistantTextPartId });
+
+        let streamErrored = false;
+        let streamedAssistantTextRaw = "";
+
+        try {
+          for await (const delta of streamResult.textStream) {
+            streamedAssistantTextRaw += delta;
+            writer.write({
+              type: "text-delta",
+              id: assistantTextPartId,
+              delta,
+            });
+          }
+        } catch (error) {
+          streamErrored = true;
+          console.error("Chat text stream error:", error);
+        } finally {
+          writer.write({ type: "text-end", id: assistantTextPartId });
+        }
+
+        const streamedAssistantText = streamedAssistantTextRaw.trim();
+        const fallbackText = safeFallbackText(user.explanation_language);
+
+        let finalText = streamedAssistantText || fallbackText;
+        let moderationStatus: ModerationStatus = "ok";
+        let languagePolicyStatus: LanguagePolicyStatus = "pass";
+        let languagePolicyReason: string | null = null;
+        let replacementReason: "language_policy" | "moderation" =
+          "language_policy";
+        let persisted = false;
+
+        try {
+          if (!streamErrored) {
+            const firstAudit = auditLanguagePolicy({
+              text: finalText,
+              explanationLanguage: user.explanation_language,
+              labels,
+              correctionLabel,
+              expectedTemplate,
+            });
+
+            if (!firstAudit.ok) {
+              languagePolicyReason = firstAudit.reasonCode;
+              const repairedText = await repairAssistantText({
+                originalText: finalText,
+                explanationLanguage: user.explanation_language,
+                expectedTemplate,
+                labels,
+                correctionLabel,
+              });
+
+              if (repairedText) {
+                const repairedAudit: LanguagePolicyAuditResult =
+                  auditLanguagePolicy({
+                    text: repairedText,
+                    explanationLanguage: user.explanation_language,
+                    labels,
+                    correctionLabel,
+                    expectedTemplate,
+                  });
+
+                if (repairedAudit.ok) {
+                  finalText = repairedText;
+                  languagePolicyStatus = "repaired";
+                } else {
+                  finalText = fallbackText;
+                  languagePolicyStatus = "repair_failed";
+                  languagePolicyReason = repairedAudit.reasonCode;
+                }
+              } else {
+                finalText = fallbackText;
+                languagePolicyStatus = "repair_failed";
+              }
+            }
+          } else {
+            finalText = fallbackText;
+            languagePolicyStatus = "fallback";
+            languagePolicyReason = "stream_error";
+          }
+
+          const assistantModeration = await isContentSafe(finalText);
+          moderationStatus = assistantModeration.safe
             ? "ok"
             : assistantModeration.reason === "OUTAGE"
               ? "outage"
               : "blocked";
 
-        logAssistantModerationTelemetry({
+          logAssistantModerationTelemetry({
+            userId: user.id,
+            sessionId,
+            status: moderationStatus,
+            reasonCategory:
+              assistantModeration.categories?.[0] ??
+              assistantModeration.reason ??
+              null,
+            contentHash: hashContent(finalText),
+          });
+
+          if (moderationStatus !== "ok") {
+            finalText = fallbackText;
+            replacementReason = "moderation";
+            languagePolicyStatus = "fallback";
+          }
+
+          await persistAssistantFinalText({
+            userId: user.id,
+            sessionId,
+            session,
+            assistantText: finalText,
+            explanationLanguage: user.explanation_language,
+            userContentForExtraction,
+            allowExtraction: moderationStatus === "ok",
+            prismaClient: prisma,
+          });
+          persisted = true;
+        } catch (error) {
+          console.error("Assistant post-stream finalize error:", error);
+          finalText = fallbackText;
+          replacementReason = "moderation";
+          languagePolicyStatus = "fallback";
+          moderationStatus = "outage";
+
+          logAssistantModerationTelemetry({
+            userId: user.id,
+            sessionId,
+            status: moderationStatus,
+            reasonCategory: "post_stream_error",
+            contentHash: hashContent(finalText),
+          });
+        }
+
+        if (!persisted) {
+          try {
+            await persistAssistantFinalText({
+              userId: user.id,
+              sessionId,
+              session,
+              assistantText: finalText,
+              explanationLanguage: user.explanation_language,
+              userContentForExtraction,
+              allowExtraction: false,
+              prismaClient: prisma,
+            });
+          } catch (persistError) {
+            console.error("Assistant fallback persistence failed:", persistError);
+          }
+        }
+
+        const shouldEmitRepair =
+          finalText.trim() !== streamedAssistantText.trim();
+
+        if (shouldEmitRepair) {
+          writer.write({
+            type: "data-language_repair",
+            data: {
+              event: "language_repair",
+              messageId: assistantMessageId,
+              replacementText: finalText,
+              reason:
+                replacementReason === "moderation" || moderationStatus !== "ok"
+                  ? "moderation"
+                  : "language_policy",
+              template: expectedTemplate,
+            },
+            transient: true,
+          });
+        }
+
+        logLanguagePolicyTelemetry({
           userId: user.id,
           sessionId,
-          status: moderationStatus,
-          reasonCategory:
-            assistantModeration.categories?.[0] ??
-            assistantModeration.reason ??
-            null,
+          status: languagePolicyStatus,
+          reasonCode: languagePolicyReason,
+          expectedTemplate,
           contentHash: hashContent(finalText),
         });
 
-        const assistantTextForPersistence =
-          moderationStatus === "ok"
-            ? finalText
-            : safeFallbackText(user.explanation_language);
-
-        const { payload: encryptedAssistant, keyVersion: assistantKeyVersion } =
-          encrypt(assistantTextForPersistence);
-        await prisma.message.create({
-          data: {
-            sessionId,
-            role: "assistant",
-            content: encryptedAssistant,
-            keyVersion: assistantKeyVersion,
-          },
-        });
-
-        const msgCount = await prisma.message.count({ where: { sessionId } });
-
-        if (shouldGenerateAiTitle(session.title, msgCount)) {
-          const firstUserRow = await prisma.message.findFirst({
-            where: { sessionId, role: "user" },
-            orderBy: { createdAt: "asc" },
-            select: { content: true, keyVersion: true },
-          });
-
-          const firstUserText = firstUserRow
-            ? decrypt(firstUserRow.content, firstUserRow.keyVersion)
-            : "";
-
-          const aiTitle = await generateSessionTitle({
-            mode: session.mode,
-            topic: session.topic,
-            firstUserText,
-            assistantText: assistantTextForPersistence,
-          });
-
-          const nextTitle =
-            aiTitle ??
-            buildFallbackTitle(session.mode, session.topic, firstUserText);
-
-          await prisma.chatSession.update({
-            where: { id: sessionId },
-            data: { title: nextTitle, updatedAt: new Date() },
-          });
+        let finishReason: FinishReason = "stop";
+        if (streamErrored) {
+          finishReason = "error";
         } else {
-          await prisma.chatSession.update({
-            where: { id: sessionId },
-            data: { updatedAt: new Date() },
-          });
-        }
-
-        if (moderationStatus === "ok") {
           try {
-            await extractVocabAndMistakes(
-              user.id,
-              sessionId,
-              finalText,
-              userContentForExtraction,
-              user.explanation_language,
-              prisma,
-            );
-          } catch (err) {
-            console.error("Extract vocab/mistakes failed (non-critical):", err);
+            finishReason = await streamResult.finishReason;
+          } catch {
+            finishReason = "error";
           }
         }
+
+        writer.write({
+          type: "finish",
+          finishReason,
+        });
+      },
+      onError: (error) => {
+        console.error("Chat UI stream error:", error);
+        return "Noe gikk galt. Prov igjen senere.";
       },
     });
 
-    return result.toUIMessageStreamResponse();
+    return createUIMessageStreamResponse({ stream });
   } catch (error) {
     console.error("Chat error:", error);
     return new Response("Internal server error", { status: 500 });

@@ -39,6 +39,31 @@ interface ChatViewProps {
   onStreamFinish?: () => void;
 }
 
+type LanguageRepairPayload = {
+  event: "language_repair";
+  messageId: string;
+  replacementText: string;
+  reason: "language_policy" | "moderation";
+  template: "template_1" | "template_2" | "template_3";
+};
+
+function isLanguageRepairPayload(
+  value: unknown,
+): value is LanguageRepairPayload {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<LanguageRepairPayload>;
+  return (
+    candidate.event === "language_repair" &&
+    typeof candidate.messageId === "string" &&
+    typeof candidate.replacementText === "string" &&
+    (candidate.reason === "language_policy" ||
+      candidate.reason === "moderation") &&
+    (candidate.template === "template_1" ||
+      candidate.template === "template_2" ||
+      candidate.template === "template_3")
+  );
+}
+
 function getMessageText(msg: UIMessage): string {
   if (!msg.parts || !Array.isArray(msg.parts)) return "";
   return msg.parts
@@ -71,7 +96,11 @@ export function ChatView({
       const msg = err?.message ?? "";
       if (msg.includes("429") || msg.includes("Too many")) {
         toast.error("For mange meldinger. Vent litt før du prøver igjen.");
-      } else if (msg.includes("400") || msg.includes("too long") || msg.includes("appropriate")) {
+      } else if (
+        msg.includes("400") ||
+        msg.includes("too long") ||
+        msg.includes("appropriate")
+      ) {
         try {
           const body = (err as { body?: { error?: string } })?.body;
           const apiMsg = typeof body?.error === "string" ? body.error : null;
@@ -82,6 +111,50 @@ export function ChatView({
       } else {
         toast.error("Noe gikk galt. Prøv igjen senere.");
       }
+    },
+    onData: (dataPart) => {
+      if (dataPart.type !== "data-language_repair") return;
+      if (!isLanguageRepairPayload(dataPart.data)) return;
+
+      const payload = dataPart.data;
+      setMessages((prev) => {
+        let changed = false;
+
+        const next = prev.map((message) => {
+          if (message.id !== payload.messageId || message.role !== "assistant") {
+            return message;
+          }
+
+          changed = true;
+          let replaced = false;
+          const parts = message.parts.map((part) => {
+            if (part.type === "text" && !replaced) {
+              replaced = true;
+              return {
+                ...part,
+                text: payload.replacementText,
+                state: "done" as const,
+              };
+            }
+            return part;
+          });
+
+          if (!replaced) {
+            parts.unshift({
+              type: "text",
+              text: payload.replacementText,
+              state: "done" as const,
+            });
+          }
+
+          return {
+            ...message,
+            parts,
+          };
+        });
+
+        return changed ? next : prev;
+      });
     },
   });
 
@@ -502,3 +575,4 @@ function ChatBubble({ message }: { message: UIMessage & { created_at?: string } 
     </motion.div>
   );
 }
+

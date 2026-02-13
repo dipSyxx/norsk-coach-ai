@@ -1,6 +1,19 @@
 ﻿import type { SessionUser } from "./auth";
 
 export type SessionContext = { mode?: string; topic?: string | null };
+export type ExplanationLanguage = "norwegian" | "ukrainian" | "english";
+export type PromptTemplateId = "template_1" | "template_2" | "template_3";
+
+export type ExplanationLabels = {
+  expl: string;
+  meaning: string;
+  grammar: string;
+  examples: string;
+  exercise: string;
+  notes: string;
+  rule: string;
+  commonMistake: string;
+};
 
 const STYLE_PROMPTS: Record<string, string> = {
   friendly:
@@ -22,10 +35,43 @@ const EXPLANATION_LANGUAGE_PROMPTS: Record<string, string> = {
     "The student's chosen explanation language is English. Write all explanations in English. Keep Norwegian example sentences in Norwegian.",
 };
 
-const CORRECTION_LABELS: Record<string, string> = {
+export const CORRECTION_LABELS: Record<ExplanationLanguage, string> = {
   norwegian: "Rettelse",
   english: "Correction",
-  ukrainian: "\u0412\u0438\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u043d\u044f",
+  ukrainian: "Виправлення",
+};
+
+export const EXPL_LABELS: Record<ExplanationLanguage, ExplanationLabels> = {
+  ukrainian: {
+    expl: "Пояснення",
+    meaning: "Значення / переклад",
+    grammar: "Граматика / правило",
+    examples: "Приклади",
+    exercise: "Міні-вправа",
+    notes: "Примітка",
+    rule: "Правило",
+    commonMistake: "Типова помилка",
+  },
+  english: {
+    expl: "Explanation",
+    meaning: "Meaning / translation",
+    grammar: "Grammar / rule",
+    examples: "Examples",
+    exercise: "Mini exercise",
+    notes: "Note",
+    rule: "Rule",
+    commonMistake: "Common mistake",
+  },
+  norwegian: {
+    expl: "Forklaring",
+    meaning: "Betydning / oversettelse",
+    grammar: "Grammatikk / regel",
+    examples: "Eksempler",
+    exercise: "Miniovelse",
+    notes: "Merknad",
+    rule: "Regel",
+    commonMistake: "Vanlig feil",
+  },
 };
 
 const GOAL_PROMPTS: Record<string, string> = {
@@ -40,9 +86,30 @@ const GOAL_PROMPTS: Record<string, string> = {
     "Focus on writing quality: sentence clarity, structure, and concise rewrite suggestions.",
 };
 
+function normalizeExplanationLanguage(
+  value: string | null | undefined,
+): ExplanationLanguage {
+  if (value === "ukrainian" || value === "english" || value === "norwegian") {
+    return value;
+  }
+  return "norwegian";
+}
+
+export function getExplanationLabels(
+  explanationLanguage: string | null | undefined,
+): ExplanationLabels {
+  return EXPL_LABELS[normalizeExplanationLanguage(explanationLanguage)];
+}
+
+export function getCorrectionLabel(
+  explanationLanguage: string | null | undefined,
+): string {
+  return CORRECTION_LABELS[normalizeExplanationLanguage(explanationLanguage)];
+}
+
 export function buildSystemPrompt(
   user: SessionUser,
-  sessionContext?: SessionContext
+  sessionContext?: SessionContext,
 ): string {
   const stylePart = STYLE_PROMPTS[user.coach_style] ?? STYLE_PROMPTS.friendly;
   const langPart =
@@ -67,8 +134,8 @@ export function buildSystemPrompt(
             ? "In this session focus on one grammar point. Use a structured response: the rule, one short example, and one mini exercise."
             : "";
 
-  const correctionLabel =
-    CORRECTION_LABELS[user.explanation_language] ?? CORRECTION_LABELS.norwegian;
+  const correctionLabel = getCorrectionLabel(user.explanation_language);
+  const labels = getExplanationLabels(user.explanation_language);
 
   return `You are a Norwegian language tutor (bokmaal). Your student is at the ${user.level} level.
 
@@ -87,7 +154,7 @@ Rules:
 - For definition/meaning/translation requests, the explanation text must be entirely in the chosen explanation language. Do not mix explanation languages in the same explanation.
 - You may keep the target Norwegian word or phrase unchanged, and Norwegian example sentences in Norwegian, but all explanatory prose must stay in the chosen explanation language.
 - Keep your responses at the student's level (${user.level}).
-- When the student makes a mistake, briefly correct it with the pattern: "${correctionLabel}: [correct form] - [short explanation]"
+- When the student makes a mistake, briefly correct it with the pattern: "${correctionLabel}: [correct form] — [one-sentence explanation in explanation language]"
 - After correcting, continue the conversation naturally.
 - Suggest new vocabulary when appropriate, with brief explanations in their explanation language when relevant.
 - Use varied sentence structures to expose the student to different patterns.
@@ -96,5 +163,29 @@ Rules:
   - free_chat and rollespill: 2-4 sentences.
   - grammatikk, ovelse, rett_teksten: structured short blocks (rule + example + one exercise/step).
   - definition/meaning requests: concise but complete explanation in chosen explanation language.
+- Output format rules (STRICT):
+  - You MUST match exactly one template below.
+  - Explanatory prose and explanatory headings must be only in the chosen explanation language.
+  - Norwegian is allowed only for dialogue lines, role-play lines, exercise prompts, and Norwegian example sentences.
+- TEMPLATE 1 (meaning/explanation request):
+  ${labels.expl}:
+  - ${labels.meaning}: <explanation language text>
+  - ${labels.grammar}: <explanation language text (optional)>
+  - ${labels.examples}:
+    1) <Norwegian example sentence>
+    2) <Norwegian example sentence>
+  - ${labels.exercise}: <Norwegian micro-task line ending with a question mark. Then wait for the student's answer.>
+- TEMPLATE 2 (grammar mode):
+  ${labels.grammar}:
+  - ${labels.rule}: <explanation language text>
+  - ${labels.commonMistake}: <explanation language text>
+  - ${labels.examples}:
+    1) <Norwegian example sentence>
+  - ${labels.exercise}: <Norwegian micro-task line ending with a question mark. Then wait for the student's answer.>
+- TEMPLATE 3 (free chat / role-play):
+  - 2-4 Norwegian sentences.
+  - If correcting: "${correctionLabel}: [correct form] — [one-sentence explanation in explanation language]"
+  - Optionally add one short note in explanation language: "${labels.notes}: <one sentence>".
 - Be natural and authentic - like a real Norwegian conversation partner who also teaches.`;
 }
+
