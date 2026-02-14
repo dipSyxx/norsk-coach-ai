@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { generateAndSendVerificationCode } from "@/lib/verification";
 
 export async function POST(req: Request) {
   try {
@@ -46,6 +47,12 @@ export async function POST(req: Request) {
         onboardingComplete: true,
       },
     });
+
+    // Send verification code (fire-and-forget — signup succeeds even if
+    // email delivery fails; the user can resend from /verify-email).
+    generateAndSendVerificationCode(emailNorm, name || null, true).catch(
+      (err) => console.error("Signup verification email error:", err)
+    );
 
     return NextResponse.json({ user });
   } catch (error) {

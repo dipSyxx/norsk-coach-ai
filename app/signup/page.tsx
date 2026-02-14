@@ -44,7 +44,7 @@ export default function SignupPage() {
         email,
         password,
         redirect: false,
-        callbackUrl: "/onboarding",
+        callbackUrl: "/verify-email",
       });
 
       if (signInRes?.error) {
@@ -54,7 +54,7 @@ export default function SignupPage() {
         return;
       }
 
-      router.push("/onboarding");
+      router.push("/verify-email");
       router.refresh();
     } catch {
       toast.error("Kunne ikke koble til serveren");
